@@ -1,29 +1,32 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Shield, ShieldAlert, Edit, Trash2, Mail } from 'lucide-react';
+import { User, Shield, ShieldAlert, Edit, Trash2, X, Loader2 } from 'lucide-react';
 
 export default function SystemUsersPage() {
   const [admins, setAdmins] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'MODERATOR' });
 
   useEffect(() => {
-    const fetchAdmins = async () => {
-      try {
-        const res = await fetch('/api/admin/system-users');
-        const data = await res.json();
-        setAdmins(data.admins || []);
-      } catch (err) {
-        console.error('Failed to fetch admins');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchAdmins();
   }, []);
 
+  const fetchAdmins = async () => {
+    try {
+      const res = await fetch('/api/admin/system-users');
+      const data = await res.json();
+      setAdmins(data.admins || []);
+    } catch (err) {
+      console.error('Failed to fetch admins');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRoleChange = async (id: string, role: string) => {
-    // API call to update role
     const res = await fetch(`/api/admin/system-users/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -32,7 +35,48 @@ export default function SystemUsersPage() {
     if (res.ok) {
        setAdmins(admins.map(a => a.id === id ? { ...a, role } : a));
     } else {
-       alert('Failed to update role. Permission denied.');
+       alert('Failed to update role. Only Superadmins can perform this action.');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this admin?')) return;
+    
+    const res = await fetch(`/api/admin/system-users/${id}`, {
+      method: 'DELETE'
+    });
+    
+    if (res.ok) {
+      setAdmins(admins.filter(a => a.id !== id));
+    } else {
+      const data = await res.json();
+      alert(data.error || 'Failed to delete admin');
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/admin/system-users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      
+      if (res.ok) {
+        const newAdmin = await res.json();
+        setAdmins([newAdmin, ...admins]);
+        setShowModal(false);
+        setFormData({ name: '', email: '', password: '', role: 'MODERATOR' });
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to create admin');
+      }
+    } catch (err) {
+      alert('An error occurred');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -46,7 +90,11 @@ export default function SystemUsersPage() {
           <p>Manage administrative roles and dashboard access levels.</p>
         </div>
         <div className="action-buttons">
-          <button className="btn-primary" style={{ backgroundColor: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: '#fff' }}>
+          <button 
+            className="btn-primary" 
+            onClick={() => setShowModal(true)}
+            style={{ backgroundColor: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: '#fff' }}
+          >
             + Invite Admin
           </button>
         </div>
@@ -102,8 +150,12 @@ export default function SystemUsersPage() {
                 </td>
                 <td style={{ padding: '16px 24px', textAlign: 'right' }}>
                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                      <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><Edit size={16} /></button>
-                      <button style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                      <button 
+                        onClick={() => handleDelete(admin.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                    </div>
                 </td>
               </tr>
@@ -124,6 +176,81 @@ export default function SystemUsersPage() {
             </div>
          </div>
       </div>
+
+      {/* Invite Modal */}
+      {showModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+          backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+        }}>
+          <div className="card glass-card" style={{ width: '100%', maxWidth: '400px', backgroundColor: 'var(--bg-sidebar)', padding: '32px' }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: 700 }}>Invite New Admin</h2>
+                <button 
+                  onClick={() => setShowModal(false)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
+             </div>
+
+             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div>
+                   <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Full Name</label>
+                   <input 
+                     type="text" required
+                     placeholder="John Doe"
+                     value={formData.name}
+                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                     style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                   />
+                </div>
+                <div>
+                   <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Email Address</label>
+                   <input 
+                     type="email" required
+                     placeholder="admin@example.com"
+                     value={formData.email}
+                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                     style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                   />
+                </div>
+                <div>
+                   <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Initial Password</label>
+                   <input 
+                     type="password" required
+                     placeholder="••••••••"
+                     value={formData.password}
+                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                     style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                   />
+                </div>
+                <div>
+                   <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Role</label>
+                   <select 
+                     value={formData.role}
+                     onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                     style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                   >
+                      <option value="MODERATOR">Moderator</option>
+                      <option value="SUPERADMIN">Superadmin</option>
+                   </select>
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={submitting}
+                  className="btn-primary" 
+                  style={{ width: '100%', marginTop: '12px', backgroundColor: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                >
+                  {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Create Account
+                </button>
+             </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
