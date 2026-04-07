@@ -11,9 +11,9 @@ export default function DashboardLayout({
   return (
     <div className="app-container" style={{ overflow: 'hidden' }}>
       {/* Background Decorative Elements */}
-      <div style={{ position: 'fixed', top: '10%', left: '15%', width: '300px', height: '300px', background: 'rgba(59, 130, 246, 0.2)', borderRadius: '50%', filter: 'blur(80px)', zIndex: -1 }}></div>
-      <div style={{ position: 'fixed', bottom: '15%', right: '10%', width: '400px', height: '400px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '50%', filter: 'blur(100px)', zIndex: -1 }}></div>
-      <div style={{ position: 'fixed', top: '40%', right: '25%', width: '250px', height: '250px', background: 'rgba(244, 63, 94, 0.1)', borderRadius: '50%', filter: 'blur(70px)', zIndex: -1 }}></div>
+      <div style={{ position: 'fixed', top: '10%', left: '15%', width: '300px', height: '300px', background: 'rgba(59, 130, 246, 0.15)', borderRadius: '50%', filter: 'blur(80px)', zIndex: -1 }}></div>
+      <div style={{ position: 'fixed', bottom: '15%', right: '10%', width: '400px', height: '400px', background: 'rgba(29, 78, 216, 0.12)', borderRadius: '50%', filter: 'blur(100px)', zIndex: -1 }}></div>
+      <div style={{ position: 'fixed', top: '40%', right: '25%', width: '250px', height: '250px', background: 'rgba(30, 58, 138, 0.1)', borderRadius: '50%', filter: 'blur(70px)', zIndex: -1 }}></div>
 
       <aside className="sidebar">
         <div className="sidebar-logo">₪ AirPulse</div>
