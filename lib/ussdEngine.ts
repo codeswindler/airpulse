@@ -157,7 +157,7 @@ async function updateSession(sessionId: string, data: any) {
 }
 
 function triggerStkPush(payerPhone: string, targetPhone: string, amount: number, sessionId: string) {
-  fetch(`${process.env.APP_URL || 'http://localhost:3000'}/api/internal/stkpush`, {
+  fetch(`${process.env.APP_URL || 'https://airpulse.theleasemaster.com'}/api/internal/stkpush`, {
     method: 'POST',
     body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId }),
     headers: { 'Content-Type': 'application/json' }
@@ -165,7 +165,7 @@ function triggerStkPush(payerPhone: string, targetPhone: string, amount: number,
 }
 
 function triggerWalletPayment(payerPhone: string, targetPhone: string, amount: number, sessionId: string) {
-  fetch(`${process.env.APP_URL || 'http://localhost:3000'}/api/internal/wallet-pay`, {
+  fetch(`${process.env.APP_URL || 'https://airpulse.theleasemaster.com'}/api/internal/wallet-pay`, {
     method: 'POST',
     body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId }),
     headers: { 'Content-Type': 'application/json' }
