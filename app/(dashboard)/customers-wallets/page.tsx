@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { prisma } from '@/lib/prisma';
 import SearchBar from '@/components/SearchBar';
 import ExportCSV from '@/components/ExportCSV';
@@ -24,7 +25,9 @@ export default async function CustomersWalletsPage({ searchParams }: { searchPar
           <p>Manage USSD users and their accumulated fallback balances</p>
         </div>
         <div className="action-buttons" style={{ display: 'flex', gap: 16 }}>
-          <SearchBar placeholder="Search by phone or id..." />
+          <Suspense fallback={<div className="text-xs text-gray-500">Loading search...</div>}>
+            <SearchBar placeholder="Search by phone or id..." />
+          </Suspense>
           <ExportCSV data={users} filename="customers-wallets" />
         </div>
       </div>
