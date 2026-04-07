@@ -26,11 +26,22 @@ export async function POST(req: NextRequest) {
 
     const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw);
 
-    // Moneymaker expects plain text, stripped of Next.js auto headers if possible
+    const provider = (process.env.USSD_PROVIDER || 'africastalking').toLowerCase();
+    
+    if (provider === 'moneymaker') {
+      return new Response(responseText, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    }
+
     return new Response(responseText, {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'text/plain; charset=utf-8',
       },
     });
   } catch (error) {
@@ -50,10 +61,22 @@ export async function GET(req: NextRequest) {
 
     const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw);
 
+    const provider = (process.env.USSD_PROVIDER || 'africastalking').toLowerCase();
+    
+    if (provider === 'moneymaker') {
+      return new Response(responseText, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/plain',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    }
+
     return new Response(responseText, {
       status: 200,
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'text/plain; charset=utf-8',
       },
     });
   } catch (error) {

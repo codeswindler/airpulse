@@ -1,5 +1,13 @@
 import { prisma } from './prisma';
 
+function getPrefix(type: 'CON' | 'END'): string {
+  const provider = (process.env.USSD_PROVIDER || 'africastalking').toLowerCase();
+  if (provider === 'moneymaker') {
+    return (type === 'CON' ? (process.env.USSD_CON_PREFIX || 'CON') : (process.env.USSD_END_PREFIX || 'END')) + ' ';
+  }
+  return type + ' ';
+}
+
 export async function processUssdRequest(sessionId: string, phoneNumber: string, inputRaw: string) {
   // Normalize input
   const input = normalizeInput(inputRaw);
@@ -41,23 +49,23 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
       return showMainMenu();
     } else if (input === '1') {
       await updateSession(sessionId, { state: 'ENTER_AMOUNT_MY_NUMBER', targetPhone: phoneNumber });
-      return `CON Enter your amount (Min:5, Max:5000)`;
+      return `${getPrefix('CON')}Enter your amount (Min:5, Max:5000)`;
     } else if (input === '2') {
       await updateSession(sessionId, { state: 'ENTER_OTHER_NUMBER' });
-      return `CON Enter number you wish to receive amount`;
+      return `${getPrefix('CON')}Enter number you wish to receive amount`;
     } else if (input === '3') {
       const saved = await prisma.savedPhone.findMany({ where: { phoneNumber }, take: 5 });
       if (saved.length === 0) {
-        return `CON You have no saved numbers.`;
+        return `${getPrefix('CON')}You have no saved numbers.`;
       }
-      let menu = 'CON Saved Numbers:\n';
+      let menu = `${getPrefix('CON')}Saved Numbers:\n`;
       saved.forEach((s: any, idx: number) => {
         menu += `${idx + 1}. ${s.savedNumber}\n`;
       });
       await updateSession(sessionId, { state: 'SHOW_SAVED_NUMBERS' });
       return menu;
     } else if (input === '4') {
-      return `END Goodbye.`;
+      return `${getPrefix('END')}Goodbye.`;
     } else {
       return showMainMenu();
     }
@@ -66,11 +74,11 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
   if (state === 'ENTER_AMOUNT_MY_NUMBER' || state === 'ENTER_AMOUNT_OTHER_NUMBER' || state === 'ENTER_AMOUNT_SAVED_NUMBER') {
     const amount = parseFloat(input);
     if (isNaN(amount) || amount < 5 || amount > 5000) {
-      return `CON Invalid amount. Enter your amount (Min:5, Max:5000)`;
+      return `${getPrefix('CON')}Invalid amount. Enter your amount (Min:5, Max:5000)`;
     }
     await updateSession(sessionId, { amount, state: 'CONFIRM_PURCHASE' });
     
-    let menu = `CON You about to buy Ksh. ${amount} airtime for ${session.targetPhone}.\n`;
+    let menu = `${getPrefix('CON')}You about to buy Ksh. ${amount} airtime for ${session.targetPhone}.\n`;
     if (walletBalance >= amount) {
        menu += `1. Pay with Wallet (Bal: ${walletBalance})\n2. Pay with M-Pesa\n3. Cancel`;
     } else {
@@ -81,7 +89,7 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
 
   if (state === 'ENTER_OTHER_NUMBER') {
     await updateSession(sessionId, { targetPhone: input, state: 'SAVE_NUMBER_PROMPT' });
-    return `CON Do you want to save this number?\n1. Save number\n2. Proceed to purchase`;
+    return `${getPrefix('CON')}Do you want to save this number?\n1. Save number\n2. Proceed to purchase`;
   }
 
   if (state === 'SAVE_NUMBER_PROMPT') {
@@ -93,17 +101,17 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
       });
     }
     await updateSession(sessionId, { state: 'ENTER_AMOUNT_OTHER_NUMBER' });
-    return `CON Enter your amount (Min:5, Max:5000)`;
+    return `${getPrefix('CON')}Enter your amount (Min:5, Max:5000)`;
   }
 
   if (state === 'SHOW_SAVED_NUMBERS') {
     const idx = parseInt(input) - 1;
     const saved = await prisma.savedPhone.findMany({ where: { phoneNumber }, take: 5 });
     if (isNaN(idx) || !saved[idx]) {
-      return `CON Invalid selection.`;
+      return `${getPrefix('CON')}Invalid selection.`;
     }
     await updateSession(sessionId, { targetPhone: saved[idx].savedNumber, state: 'ENTER_AMOUNT_SAVED_NUMBER' });
-    return `CON Enter your amount (Min:5, Max:5000)`;
+    return `${getPrefix('CON')}Enter your amount (Min:5, Max:5000)`;
   }
 
   if (state === 'CONFIRM_PURCHASE') {
@@ -113,25 +121,25 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
     if (isWalletEligible) {
       if (input === '1') {
         triggerWalletPayment(phoneNumber, session.targetPhone!, amount, sessionId);
-        return `END processing wallet payment... Ksh ${amount} charged.`;
+        return `${getPrefix('END')}processing wallet payment... Ksh ${amount} charged.`;
       } else if (input === '2') {
         triggerStkPush(phoneNumber, session.targetPhone!, amount, sessionId);
-        return `END processing M-Pesa... Please check your phone for the PIN prompt.`;
+        return `${getPrefix('END')}processing M-Pesa... Please check your phone for the PIN prompt.`;
       }
     } else {
       if (input === '1') {
         triggerStkPush(phoneNumber, session.targetPhone!, amount, sessionId);
-        return `END processing M-Pesa... Please check your phone for the PIN prompt.`;
+        return `${getPrefix('END')}processing M-Pesa... Please check your phone for the PIN prompt.`;
       }
     }
-    return `END Transaction cancelled.`;
+    return `${getPrefix('END')}Transaction cancelled.`;
   }
 
   return showMainMenu();
 }
 
 function showMainMenu() {
-  return `CON Buy Credo Bila Charges!\n1. My Number\n2. Other number\n3. Saved Numbers\n4. Exit`;
+  return `${getPrefix('CON')}Buy Credo Bila Charges!\n1. My Number\n2. Other number\n3. Saved Numbers\n4. Exit`;
 }
 
 function normalizeInput(inputStr?: string) {
