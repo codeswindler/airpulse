@@ -1,5 +1,16 @@
 import { prisma } from '@/lib/prisma';
 import DashboardChart from '@/components/DashboardChart';
+import { 
+  TrendingUp, 
+  Activity, 
+  CreditCard, 
+  Users, 
+  Zap, 
+  ShieldCheck, 
+  DollarSign, 
+  BarChart3,
+  Wallet
+} from 'lucide-react';
 
 export default async function Dashboard() {
   const transactions = await prisma.transaction.findMany({ 
@@ -68,48 +79,89 @@ export default async function Dashboard() {
 
       <div className="grid-top">
         <div className="card">
-          <div className="card-title">Volume</div>
-          <div className="card-value">Ksh {totalVolume.toLocaleString()}</div>
-          <div className="trend-up">▲ 24% than last month</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="card-title">Volume</div>
+              <div className="card-value" style={{ textShadow: '0 0 20px var(--accent-glow)' }}>
+                Ksh {totalVolume.toLocaleString()}
+              </div>
+            </div>
+            <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
+              <BarChart3 size={20} color="var(--accent-color)" />
+            </div>
+          </div>
+          <div className="trend-up">
+            <TrendingUp size={14} /> 
+            <span>24% than last month</span>
+          </div>
         </div>
         
         <div className="card">
-          <div className="card-title">Transactions</div>
-          <div className="card-value">{totalTx}</div>
-          <div className="trend-up">▲ 12% growth</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="card-title">Transactions</div>
+              <div className="card-value">{totalTx}</div>
+            </div>
+            <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
+              <Activity size={20} color="var(--success-color)" />
+            </div>
+          </div>
+          <div className="trend-up">
+            <TrendingUp size={14} /> 
+            <span>12% growth</span>
+          </div>
         </div>
 
         <div className="card">
-          <div className="card-title">Earnings (Comm.)</div>
-          <div className="card-value">Ksh {totalEarnings.toLocaleString()}</div>
-          <div className="trend-up">▲ 5% growth</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="card-title">Earnings (Comm.)</div>
+              <div className="card-value">Ksh {totalEarnings.toLocaleString()}</div>
+            </div>
+            <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
+              <DollarSign size={20} color="var(--warning-color)" />
+            </div>
+          </div>
+          <div className="trend-up">
+            <TrendingUp size={14} /> 
+            <span>5% growth</span>
+          </div>
         </div>
       </div>
 
       <div className="grid-middle">
         <div className="card" style={{ padding: '0' }}>
-          <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)' }}>
-            <div className="card-title" style={{ color: 'var(--text-primary)', marginBottom: 4 }}>Today's Activity</div>
+          <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <Zap size={18} color="var(--accent-color)" />
+            <div className="card-title" style={{ color: 'var(--text-primary)', marginBottom: 0 }}>Today's Activity</div>
           </div>
-          <div style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: 13, height: 150 }}>
-            Nothing happening yet today<br/><br/>
-            No recent activity
+          <div style={{ padding: '24px', color: 'var(--text-secondary)', fontSize: 13, height: 150, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+            <div style={{ opacity: 0.5, marginBottom: 12 }}>
+               <Activity size={48} strokeWidth={1} />
+            </div>
+            No recent activity tracked
           </div>
         </div>
 
         <div className="card">
-          <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 16 }}>SYSTEM HEALTH</div>
-          <div style={{ fontSize: 13, color: 'var(--success-color)' }}>All services operational</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 24 }}>System load is stable</div>
-          
-          <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 16 }}>WALLET METRICS</div>
-          <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Total User Wallets Reserve</span>
-            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Ksh {totalWalletReserve.toLocaleString()}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <ShieldCheck size={16} color="var(--success-color)" />
+            <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>SYSTEM HEALTH</div>
           </div>
-          <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Live USSD Sessions</span>
-            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{activeSessions} connected</span>
+          <div style={{ fontSize: 13, color: 'var(--success-color)', fontWeight: 600 }}>All services operational</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 24 }}>Latency: 45ms (Optimal)</div>
+          
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <Wallet size={16} color="var(--accent-color)" />
+            <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>WALLET METRICS</div>
+          </div>
+          <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Reserved Balance</span>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Ksh {totalWalletReserve.toLocaleString()}</span>
+          </div>
+          <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Live Sessions</span>
+            <span style={{ color: 'var(--success-color)', fontWeight: 700 }}>{activeSessions} active</span>
           </div>
         </div>
       </div>
