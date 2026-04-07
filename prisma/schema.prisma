@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = "mysql://root:RootPass123!@localhost:3306/airtimedb"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  phoneNumber   String   @unique
+  walletBalance Float    @default(0.0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model UssdSession {
+  id          String   @id @default(uuid())
+  sessionId   String   @unique
+  phoneNumber String
+  state       String   // e.g. MAIN_MENU, ENTER_AMOUNT, ENTER_TARGET, CONFIRM
+  targetPhone String?  
+  amount      Float?   
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SavedPhone {
+  id          String   @id @default(uuid())
+  phoneNumber String   // Owner
+  savedNumber String   // Target
+  createdAt   DateTime @default(now())
+  
+  @@unique([phoneNumber, savedNumber])
+}
+
+model Transaction {
+  id             String   @id @default(uuid())
+  transactionId  String   @unique
+  phoneNumber    String
+  targetPhone    String
+  amount         Float
+  status         String   // PENDING_STK, STK_SUCCESS, AIRTIME_DELIVERED, FAILED
+  providerReference String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum AdminRole {
+  SUPERADMIN
+  MODERATOR
+}
+
+model Admin {
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String    // Hashed
+  name      String?
+  role      AdminRole @default(MODERATOR)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
