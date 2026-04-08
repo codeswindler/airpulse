@@ -157,17 +157,55 @@ async function updateSession(sessionId: string, data: any) {
 }
 
 function triggerStkPush(payerPhone: string, targetPhone: string, amount: number, sessionId: string) {
+  console.log('[USSD] Triggering STK push', {
+    sessionId,
+    payerPhone,
+    targetPhone,
+    amount,
+  });
+
   fetch(`${process.env.APP_URL || 'https://airpulse.theleasemaster.com'}/api/internal/stkpush`, {
     method: 'POST',
     body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId }),
     headers: { 'Content-Type': 'application/json' }
-  }).catch(console.error);
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        console.error('[USSD] STK push trigger failed', {
+          sessionId,
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+    })
+    .catch((error) => {
+      console.error('[USSD] STK push trigger error', { sessionId, error });
+    });
 }
 
 function triggerWalletPayment(payerPhone: string, targetPhone: string, amount: number, sessionId: string) {
+  console.log('[USSD] Triggering wallet payment', {
+    sessionId,
+    payerPhone,
+    targetPhone,
+    amount,
+  });
+
   fetch(`${process.env.APP_URL || 'https://airpulse.theleasemaster.com'}/api/internal/wallet-pay`, {
     method: 'POST',
     body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId }),
     headers: { 'Content-Type': 'application/json' }
-  }).catch(console.error);
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        console.error('[USSD] Wallet payment trigger failed', {
+          sessionId,
+          status: response.status,
+          statusText: response.statusText,
+        });
+      }
+    })
+    .catch((error) => {
+      console.error('[USSD] Wallet payment trigger error', { sessionId, error });
+    });
 }

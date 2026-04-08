@@ -1,6 +1,22 @@
 import { NextRequest } from 'next/server';
 import { processUssdRequest } from '@/lib/ussdEngine';
 
+function maskPhoneNumber(phoneNumber: string) {
+  if (!phoneNumber) return 'unknown';
+  if (phoneNumber.length <= 4) return phoneNumber;
+  return `${phoneNumber.slice(0, 3)}***${phoneNumber.slice(-3)}`;
+}
+
+function logIncomingUssdRequest(method: 'GET' | 'POST', provider: string, sessionId: string, phoneNumber: string, params: Record<string, unknown>) {
+  console.log('[USSD] Incoming request', {
+    method,
+    provider,
+    sessionId: sessionId || 'missing',
+    phoneNumber: maskPhoneNumber(phoneNumber),
+    paramKeys: Object.keys(params).sort(),
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     // Attempt to parse Form Data first, then JSON
@@ -23,10 +39,10 @@ export async function POST(req: NextRequest) {
     const sessionId = params.sessionId ?? params.SESSIONID ?? params.SESSION_ID ?? params.transactionId ?? '';
     const phoneNumber = params.phoneNumber ?? params.MSISDN ?? params.msisdn ?? params.mobile ?? '';
     const inputRaw = params.text ?? params.INPUT ?? params.ussd_string ?? params.command ?? '';
-
     const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw);
-
     const provider = (process.env.USSD_PROVIDER || 'africastalking').toLowerCase();
+
+    logIncomingUssdRequest('POST', provider, sessionId, phoneNumber, params);
     
     if (provider === 'moneymaker') {
       return new Response(responseText, {
@@ -58,10 +74,10 @@ export async function GET(req: NextRequest) {
     const sessionId = params.sessionId ?? params.SESSIONID ?? params.SESSION_ID ?? params.transactionId ?? '';
     const phoneNumber = params.phoneNumber ?? params.MSISDN ?? params.msisdn ?? params.mobile ?? '';
     const inputRaw = params.text ?? params.INPUT ?? params.ussd_string ?? params.command ?? '';
-
     const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw);
-
     const provider = (process.env.USSD_PROVIDER || 'africastalking').toLowerCase();
+
+    logIncomingUssdRequest('GET', provider, sessionId, phoneNumber, params);
     
     if (provider === 'moneymaker') {
       return new Response(responseText, {
