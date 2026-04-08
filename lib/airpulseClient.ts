@@ -1,19 +1,68 @@
 import axios from 'axios';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { prisma } from './prisma';
 
 const baseUrl = 'https://api.tupay.africa/v1';
 
 let cachedToken = '';
 let tokenExpiry = 0;
 
-export async function getAirPulseToken() {
+type AirPulseConfig = {
+  apiKey?: string;
+  businessName?: string;
+  secret?: string;
+  uuid?: string;
+};
+
+function firstNonEmpty(...values: Array<string | undefined | null>) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+async function getAirPulseConfig(): Promise<AirPulseConfig> {
+  const envConfig: AirPulseConfig = {
+    uuid: firstNonEmpty(process.env.AIRPULSE_CONSUMER_UUID, process.env.AIRPULSE_UUID),
+    apiKey: firstNonEmpty(process.env.AIRPULSE_API_KEY),
+    secret: firstNonEmpty(process.env.AIRPULSE_SIGNING_SECRET, process.env.AIRPULSE_SECRET),
+    businessName: firstNonEmpty(process.env.AIRPULSE_BUSINESS_NAME),
+  };
+
+  if (envConfig.uuid && envConfig.apiKey && envConfig.secret && envConfig.businessName) {
+    return envConfig;
+  }
+
+  const settings = await prisma.systemSetting.findMany({
+    where: {
+      key: {
+        in: ['airpulse_uuid', 'airpulse_api_key', 'airpulse_secret', 'airpulse_business_name'],
+      },
+    },
+  });
+
+  const settingMap = new Map(settings.map((setting) => [setting.key, setting.value]));
+
+  return {
+    uuid: envConfig.uuid ?? firstNonEmpty(settingMap.get('airpulse_uuid')),
+    apiKey: envConfig.apiKey ?? firstNonEmpty(settingMap.get('airpulse_api_key')),
+    secret: envConfig.secret ?? firstNonEmpty(settingMap.get('airpulse_secret')),
+    businessName: envConfig.businessName ?? firstNonEmpty(settingMap.get('airpulse_business_name')),
+  };
+}
+
+export async function getAirPulseToken(config?: AirPulseConfig) {
   if (cachedToken && Date.now() < tokenExpiry) {
     return cachedToken;
   }
 
-  const uuid = process.env.AIRPULSE_CONSUMER_UUID;
-  const key = process.env.AIRPULSE_API_KEY;
+  const resolvedConfig = config ?? await getAirPulseConfig();
+  const uuid = resolvedConfig.uuid;
+  const key = resolvedConfig.apiKey;
   if (!uuid || !key) throw new Error('Missing AirPulse Credentials');
 
   const auth = Buffer.from(`${uuid}:${key}`).toString('base64');
@@ -28,12 +77,13 @@ export async function getAirPulseToken() {
 }
 
 export async function initiateStkPush(payerPhone: string, targetPhone: string, amount: number, transactionId: string) {
-  const token = await getAirPulseToken();
-  const secret = process.env.AIRPULSE_SIGNING_SECRET;
+  const config = await getAirPulseConfig();
+  const token = await getAirPulseToken(config);
+  const secret = config.secret;
   if (!secret) throw new Error('Missing signing secret');
 
   const body = {
-    name: process.env.AIRPULSE_BUSINESS_NAME || 'AirPulse',
+    name: config.businessName || 'AirPulse',
     phone: cleanPhone(payerPhone),
     service: 'mpesa',
     idempotencyKey: uuidv4(),
@@ -67,7 +117,7 @@ export async function initiateStkPush(payerPhone: string, targetPhone: string, a
 }
 
 export async function buyAirtimeFromBalance(targetPhone: string, amount: number, reference: string) {
-  const token = await getAirPulseToken();
+  const token = await getAirPulseToken(await getAirPulseConfig());
   
   const body = {
     service: getNetwork(targetPhone),
