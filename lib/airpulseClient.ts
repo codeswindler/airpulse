@@ -76,6 +76,11 @@ export async function getAirPulseToken(config?: AirPulseConfig) {
   return cachedToken;
 }
 
+export function clearAirPulseTokenCache() {
+  cachedToken = '';
+  tokenExpiry = 0;
+}
+
 export async function initiateStkPush(payerPhone: string, targetPhone: string, amount: number, transactionId: string) {
   const config = await getAirPulseConfig();
   const token = await getAirPulseToken(config);

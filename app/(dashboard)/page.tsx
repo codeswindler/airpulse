@@ -72,7 +72,7 @@ export default async function Dashboard() {
           <p>USSD Engine & Airtime healthy</p>
         </div>
         <div className="action-buttons">
-          <span className="text-amount">Available to use: Ksh 5,000</span>
+          <span className="text-amount">Tupay balance: not yet synced</span>
           <button className="btn-primary">Add funds</button>
         </div>
       </div>

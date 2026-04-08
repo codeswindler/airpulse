@@ -9,18 +9,27 @@ export default function SmsBalanceBadge() {
   useEffect(() => {
     const fetchBalance = async () => {
       try {
-        const res = await fetch('/api/admin/sms-balance');
+        const res = await fetch('/api/admin/sms-balance', { cache: 'no-store' });
         const data = await res.json();
         setBalance(data.balance);
       } catch (err) {
         console.error('Failed to fetch SMS balance');
       }
     };
+
+    const handleSettingsUpdated = () => {
+      void fetchBalance();
+    };
+
     fetchBalance();
+    window.addEventListener('settings-updated', handleSettingsUpdated);
     
     // Refresh every 5 minutes
     const interval = setInterval(fetchBalance, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('settings-updated', handleSettingsUpdated);
+    };
   }, []);
 
   if (balance === null) return null;

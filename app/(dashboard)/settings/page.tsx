@@ -42,6 +42,7 @@ export default function SettingsPage() {
         body: JSON.stringify(config)
       });
       if (res.ok) {
+        window.dispatchEvent(new Event('settings-updated'));
         setStatus({ type: 'success', msg: 'Settings updated successfully!' });
       } else {
         const data = await res.json();

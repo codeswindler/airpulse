@@ -6,6 +6,11 @@ let cachedBalance: number | null = null;
 let lastFetched: number = 0;
 const CACHE_TTL = 5 * 60 * 1000;
 
+export function clearSmsBalanceCache() {
+  cachedBalance = null;
+  lastFetched = 0;
+}
+
 export async function getSmsBalance() {
   const now = Date.now();
   if (cachedBalance !== null && (now - lastFetched < CACHE_TTL)) {
