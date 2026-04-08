@@ -1,7 +1,26 @@
 import { NextRequest } from 'next/server';
 import crypto from 'crypto';
 import { prisma } from '@/lib/prisma';
-import { buyAirtimeFromBalance } from '@/lib/airpulseClient';
+import { isTupayPendingStatus, isTupaySuccessStatus } from '@/lib/airpulseClient';
+
+function buildProviderReference(...parts: Array<string | null | undefined>) {
+  const values = new Set<string>();
+
+  for (const part of parts) {
+    if (!part) {
+      continue;
+    }
+
+    for (const item of part.split('|')) {
+      const trimmed = item.trim();
+      if (trimmed) {
+        values.add(trimmed);
+      }
+    }
+  }
+
+  return Array.from(values).join('|');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,50 +42,90 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = JSON.parse(rawBody);
-    
-    // Payload contains id (Tupay trans ID), reference (Internal ref/sessionId check?), status, message
-    // If we use the Tupay backend mode, the transactionId might not be directly in the webhook unless it maps to ID or Reference
-    // Let's assume the Reference maps to the sessionId/idempotency we passed if possible, 
-    // or we can just fetch the recent pending transaction if we matched by reference
-    
-    // IMPORTANT: Wait for 20 (Success).
-    if (payload.status === 20) {
-      // Find transaction in DB (assuming payload.reference was passed as idempotency or we matched it)
-      // Since Tupay accept doesn't let us pass reference in the payload top-level easily except via idempotencyKey
-      // We will look up by Tupay's returned ID if we saved it, but since it's async we might need a broader lookup
-      
-      // Let's assume we can match it through a simplified logic or if we just process Airtime
-      const tx = await prisma.transaction.findFirst({
-        where: { status: 'PENDING_STK' },
-        orderBy: { createdAt: 'desc' }
+    const tupayId = typeof payload.id === 'string' ? payload.id.trim() : '';
+    const reference = typeof payload.reference === 'string' ? payload.reference.trim() : '';
+    const lookupConditions = [];
+
+    if (reference) {
+      lookupConditions.push({ transactionId: reference });
+    }
+
+    if (tupayId) {
+      lookupConditions.push({ providerReference: { contains: `tupay:${tupayId}` } });
+    }
+
+    if (lookupConditions.length === 0) {
+      console.warn('[TUPAY] Callback missing transaction reference', {
+        status: payload.status,
       });
 
-      if (tx) {
-         await prisma.transaction.update({
-           where: { id: tx.id },
-           data: { status: 'STK_SUCCESS' }
-         });
+      return new Response('OK', { status: 200 });
+    }
 
-         // Autot-fulfill Airtime
-         const airtimeRes = await buyAirtimeFromBalance(tx.targetPhone, tx.amount, tx.transactionId).catch(console.error);
-         
-         if (airtimeRes && (airtimeRes.status === 0 || airtimeRes.status === 20)) {
-             await prisma.transaction.update({
-               where: { id: tx.id },
-               data: { status: 'AIRTIME_DELIVERED', providerReference: payload.id }
-             });
-         } else {
-             // Handle FAILURE - Refund wallet!
-             await prisma.transaction.update({
-                 where: { id: tx.id },
-                 data: { status: 'FAILED' }
-             });
+    const tx = await prisma.transaction.findFirst({
+      where: {
+        OR: lookupConditions,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-             await prisma.user.update({
-                 where: { phoneNumber: tx.phoneNumber },
-                 data: { walletBalance: { increment: tx.amount } }
-             });
-         }
+    if (!tx) {
+      console.warn('[TUPAY] Callback transaction not found', {
+        reference: reference || 'missing',
+        id: tupayId || 'missing',
+        status: payload.status,
+      });
+
+      return new Response('OK', { status: 200 });
+    }
+
+    const providerReference = buildProviderReference(
+      tx.providerReference,
+      tupayId ? `tupay:${tupayId}` : null,
+    );
+
+    if (isTupaySuccessStatus(payload.status)) {
+      if (tx.status === 'AIRTIME_DELIVERED') {
+        return new Response('OK', { status: 200 });
+      }
+
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: {
+          providerReference,
+          status: 'AIRTIME_DELIVERED',
+        }
+      });
+    } else if (isTupayPendingStatus(payload.status)) {
+      if (tx.status === 'AIRTIME_DELIVERED') {
+        return new Response('OK', { status: 200 });
+      }
+
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: {
+          providerReference,
+          status: 'PENDING_AIRTIME',
+        }
+      });
+    } else {
+      if (tx.status === 'FAILED') {
+        return new Response('OK', { status: 200 });
+      }
+
+      await prisma.transaction.update({
+        where: { id: tx.id },
+        data: {
+          providerReference,
+          status: 'FAILED',
+        }
+      });
+
+      if (tx.providerReference?.startsWith('wallet')) {
+        await prisma.user.update({
+          where: { phoneNumber: tx.phoneNumber },
+          data: { walletBalance: { increment: tx.amount } }
+        });
       }
     }
 

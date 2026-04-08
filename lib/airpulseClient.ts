@@ -1,5 +1,4 @@
 import axios from 'axios';
-import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from './prisma';
 
@@ -61,19 +60,44 @@ export async function getAirPulseToken(config?: AirPulseConfig) {
   }
 
   const resolvedConfig = config ?? await getAirPulseConfig();
-  const uuid = resolvedConfig.uuid;
-  const key = resolvedConfig.apiKey;
-  if (!uuid || !key) throw new Error('Missing AirPulse Credentials');
+  const authStrategies = [
+    resolvedConfig.apiKey && resolvedConfig.secret
+      ? {
+          auth: Buffer.from(`${resolvedConfig.apiKey}:${resolvedConfig.secret}`).toString('base64'),
+          endpoint: '/bus/token',
+        }
+      : null,
+    resolvedConfig.uuid && resolvedConfig.apiKey
+      ? {
+          auth: Buffer.from(`${resolvedConfig.uuid}:${resolvedConfig.apiKey}`).toString('base64'),
+          endpoint: '/token',
+        }
+      : null,
+  ].filter((strategy): strategy is { auth: string; endpoint: string } => Boolean(strategy));
 
-  const auth = Buffer.from(`${uuid}:${key}`).toString('base64');
+  if (authStrategies.length === 0) {
+    throw new Error('Missing AirPulse Credentials');
+  }
 
-  const res = await axios.post(`${baseUrl}/token`, {}, {
-    headers: { Authorization: `Basic ${auth}` }
-  });
+  let lastError: unknown;
 
-  cachedToken = res.data.access_token;
-  tokenExpiry = Date.now() + (res.data.expires_in - 60) * 1000; // Buffer of 60s
-  return cachedToken;
+  for (const strategy of authStrategies) {
+    try {
+      const response = await axios.post(`${baseUrl}${strategy.endpoint}`, {}, {
+        headers: {
+          Authorization: `Basic ${strategy.auth}`,
+        },
+      });
+
+      cachedToken = response.data.access_token;
+      tokenExpiry = Date.now() + Math.max((response.data.expires_in ?? 3600) - 60, 60) * 1000;
+      return cachedToken;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('Unable to authenticate with Tupay');
 }
 
 export function clearAirPulseTokenCache() {
@@ -81,66 +105,66 @@ export function clearAirPulseTokenCache() {
   tokenExpiry = 0;
 }
 
-export async function initiateStkPush(payerPhone: string, targetPhone: string, amount: number, transactionId: string) {
+export async function buyAirtimeFromBalance(targetPhone: string, amount: number, reference: string) {
   const config = await getAirPulseConfig();
   const token = await getAirPulseToken(config);
-  const secret = config.secret;
-  if (!secret) throw new Error('Missing signing secret');
-
-  const body = {
-    name: config.businessName || 'AirPulse',
-    phone: cleanPhone(payerPhone),
-    service: 'mpesa',
-    idempotencyKey: uuidv4(),
-    payables: [
-      {
-        name: 'Airtime',
-        account: cleanPhone(targetPhone),
+  const account = cleanPhone(targetPhone);
+  const service = getNetwork(targetPhone);
+  const idempotencyKey = uuidv4();
+  const attempts = [
+    {
+      endpoint: `/bus/order/${service}`,
+      headers: {
+        'Idempotency-Key': idempotencyKey,
+      },
+      body: {
+        account,
+        amount,
         currency: 'KES',
-        amount: amount
-      }
-    ]
-  };
+        reference,
+      },
+    },
+    {
+      endpoint: '/airtime',
+      headers: {},
+      body: {
+        service,
+        account,
+        amount,
+        currency: 'KES',
+        reference,
+        idempotencyKey,
+      },
+    },
+  ];
 
-  const bodyStr = JSON.stringify(body);
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  
-  const bodyHash = crypto.createHash('sha256').update(bodyStr).digest('hex');
-  const signatureData = timestamp + 'POST' + '/v1/pay/accept' + bodyHash;
-  const signature = crypto.createHmac('sha256', secret).update(signatureData).digest('hex');
+  let lastError: unknown;
 
-  const res = await axios.post(`${baseUrl}/pay/accept`, bodyStr, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-Api-Timestamp': timestamp,
-      'X-Api-Signature': signature
+  for (const attempt of attempts) {
+    try {
+      const response = await axios.post(`${baseUrl}${attempt.endpoint}`, attempt.body, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...attempt.headers,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      lastError = error;
     }
-  });
+  }
 
-  return res.data;
+  throw lastError ?? new Error('Unable to fulfill airtime with Tupay');
 }
 
-export async function buyAirtimeFromBalance(targetPhone: string, amount: number, reference: string) {
-  const token = await getAirPulseToken(await getAirPulseConfig());
-  
-  const body = {
-    service: getNetwork(targetPhone),
-    account: targetPhone,
-    amount,
-    currency: 'KES',
-    reference,
-    idempotencyKey: uuidv4()
-  };
+export function isTupaySuccessStatus(status: unknown) {
+  return Number(status) === 20;
+}
 
-  const res = await axios.post(`${baseUrl}/airtime`, body, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    }
-  });
-
-  return res.data;
+export function isTupayPendingStatus(status: unknown) {
+  return [0, 3, 31, 100, 101].includes(Number(status));
 }
 
 function cleanPhone(phone: string) {
@@ -148,6 +172,7 @@ function cleanPhone(phone: string) {
   let p = phone.trim();
   if (p.startsWith('+')) p = p.slice(1);
   if (p.startsWith('0')) p = '254' + p.slice(1);
+  if (/^(7|1)\d{8}$/.test(p)) p = '254' + p;
   return p;
 }
 

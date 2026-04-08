@@ -7,6 +7,7 @@ function isPublicPath(pathname: string) {
   return (
     pathname.startsWith('/login') ||
     pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/mpesa') ||
     pathname.startsWith('/api/ussd') ||
     pathname.startsWith('/api/webhook') ||
     pathname.startsWith('/api/internal') ||
@@ -53,5 +54,5 @@ export async function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api/auth|api/ussd|api/webhook|api/internal|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
+  matcher: ['/((?!api/auth|api/mpesa|api/ussd|api/webhook|api/internal|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
 };

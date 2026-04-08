@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { buyAirtimeFromBalance } from '@/lib/airpulseClient';
+import { buyAirtimeFromBalance, isTupayPendingStatus, isTupaySuccessStatus } from '@/lib/airpulseClient';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
@@ -28,20 +28,53 @@ export async function POST(req: NextRequest) {
           phoneNumber: payerPhone,
           targetPhone,
           amount,
+          providerReference: 'wallet',
           status: 'PENDING_AIRTIME'
         }
       })
     ]);
 
-    // 2. Trigger AirPulse
-    const airtimeRes = await buyAirtimeFromBalance(targetPhone, amount, txId).catch(console.error);
+    let airtimeRes;
 
-    if (airtimeRes && (airtimeRes.status === 0 || airtimeRes.status === 20)) {
+    try {
+      airtimeRes = await buyAirtimeFromBalance(targetPhone, amount, txId);
+    } catch (airtimeError) {
+      console.error('Wallet Airtime Fulfillment Error:', airtimeError);
+
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { phoneNumber: payerPhone },
+          data: { walletBalance: { increment: amount } }
+        }),
+        prisma.transaction.update({
+          where: { transactionId: txId },
+          data: { status: 'FAILED' }
+        })
+      ]);
+
+      return NextResponse.json({ error: 'Airtime API Failure' }, { status: 500 });
+    }
+
+    const providerReference = airtimeRes?.id ? `wallet|tupay:${airtimeRes.id}` : 'wallet';
+
+    if (isTupaySuccessStatus(airtimeRes?.status)) {
       await prisma.transaction.update({
         where: { transactionId: txId },
-        data: { status: 'AIRTIME_DELIVERED' }
+        data: {
+          providerReference,
+          status: 'AIRTIME_DELIVERED',
+        }
       });
       return NextResponse.json({ success: true });
+    } else if (isTupayPendingStatus(airtimeRes?.status)) {
+      await prisma.transaction.update({
+        where: { transactionId: txId },
+        data: {
+          providerReference,
+          status: 'PENDING_AIRTIME',
+        },
+      });
+      return NextResponse.json({ success: true, pending: true });
     } else {
       // Refund if API fails immediately
       await prisma.$transaction([
@@ -51,7 +84,10 @@ export async function POST(req: NextRequest) {
         }),
         prisma.transaction.update({
           where: { transactionId: txId },
-          data: { status: 'FAILED' }
+          data: {
+            providerReference,
+            status: 'FAILED',
+          }
         })
       ]);
       return NextResponse.json({ error: 'Airtime API Failure' }, { status: 500 });
