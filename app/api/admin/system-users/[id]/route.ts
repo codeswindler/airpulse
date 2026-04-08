@@ -17,8 +17,9 @@ async function getAuth(req: NextRequest) {
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const auth = await getAuth(req);
   if (!auth || auth.role !== 'SUPERADMIN') {
     return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
@@ -27,7 +28,7 @@ export async function PATCH(
   try {
     const { role } = await req.json();
     const updated = await prisma.admin.update({
-      where: { id: params.id },
+      where: { id },
       data: { role },
       select: { id: true, email: true, name: true, role: true, updatedAt: true }
     });
@@ -40,21 +41,22 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const auth = await getAuth(req);
   if (!auth || auth.role !== 'SUPERADMIN') {
     return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
   }
 
   // Prevent self-deletion
-  if (auth.id === params.id) {
+  if (auth.id === id) {
     return NextResponse.json({ error: 'You cannot delete your own account' }, { status: 400 });
   }
 
   try {
     await prisma.admin.delete({
-      where: { id: params.id }
+      where: { id }
     });
 
     return NextResponse.json({ success: true });
