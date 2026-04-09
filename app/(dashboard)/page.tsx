@@ -18,6 +18,9 @@ export const dynamic = 'force-dynamic';
 export default async function Dashboard() {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const activeSessionWindow = new Date();
+  activeSessionWindow.setMinutes(activeSessionWindow.getMinutes() - 15);
+  const settledStatuses = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'];
 
   const [transactions, totalVolumeRes, totalTx, walletReservesRes, activeSessions, historicalData, tupayBalance] = await Promise.all([
     prisma.transaction.findMany({
@@ -26,16 +29,20 @@ export default async function Dashboard() {
     }),
     prisma.transaction.aggregate({
       _sum: { amount: true },
-      where: { status: 'AIRTIME_DELIVERED' }
+      where: { status: { in: settledStatuses } }
     }),
     prisma.transaction.count(),
     prisma.user.aggregate({
       _sum: { walletBalance: true }
     }),
-    prisma.ussdSession.count(),
-    prisma.transaction.findMany({
+    prisma.ussdSession.count({
       where: {
-        status: 'AIRTIME_DELIVERED',
+        updatedAt: { gte: activeSessionWindow },
+      },
+    }),
+    prisma.transaction.findMany({
+      where: { 
+        status: { in: settledStatuses },
         createdAt: { gte: thirtyDaysAgo }
       },
       select: { amount: true, createdAt: true },

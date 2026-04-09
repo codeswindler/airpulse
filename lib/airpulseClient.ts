@@ -187,7 +187,8 @@ export async function getTupayBalance() {
       });
 
       const rawStatus = response.data?.status ?? response.data?.Status;
-      if (rawStatus !== undefined && Number(rawStatus) !== 20) {
+      const numericStatus = rawStatus !== undefined ? Number(rawStatus) : response.status;
+      if (![20, 200].includes(numericStatus)) {
         throw new Error(`Unexpected Tupay balance status: ${rawStatus}`);
       }
 
@@ -210,7 +211,7 @@ export async function getTupayBalance() {
 }
 
 export function isTupaySuccessStatus(status: unknown) {
-  return Number(status) === 20;
+  return [20, 200].includes(Number(status));
 }
 
 export function isTupayPendingStatus(status: unknown) {
