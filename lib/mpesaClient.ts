@@ -1,11 +1,13 @@
 import axios from 'axios';
 
 type MpesaConfig = {
+  businessShortCode: string;
   callbackUrl: string;
   consumerKey: string;
   consumerSecret: string;
   environment: 'production' | 'sandbox';
   passkey: string;
+  partyB: string;
   shortcode: string;
   transactionType: string;
 };
@@ -58,6 +60,37 @@ function getMpesaBaseUrl(environment: MpesaConfig['environment']) {
     : 'https://sandbox.safaricom.co.ke';
 }
 
+function maskPhone(phone: string) {
+  if (phone.length <= 6) {
+    return phone;
+  }
+
+  return `${phone.slice(0, 3)}***${phone.slice(-3)}`;
+}
+
+function maskCode(value: string) {
+  if (value.length <= 4) {
+    return value;
+  }
+
+  return `${value.slice(0, 2)}***${value.slice(-2)}`;
+}
+
+function sanitizeAccountReference(reference: string) {
+  const normalized = reference.replace(/[^a-zA-Z0-9]/g, '');
+
+  if (!normalized) {
+    return 'AirPulse';
+  }
+
+  return normalized.slice(0, 12);
+}
+
+function sanitizeTransactionDescription(reference: string) {
+  const suffix = sanitizeAccountReference(reference).slice(-6);
+  return `AIR${suffix}`.slice(0, 13);
+}
+
 function createTimestamp(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Africa/Nairobi',
@@ -105,22 +138,26 @@ function getMpesaConfig(): MpesaConfig {
   const consumerSecret = firstNonEmpty(process.env.MPESA_CONSUMER_SECRET);
   const passkey = firstNonEmpty(process.env.MPESA_PASSKEY);
   const shortcode = firstNonEmpty(process.env.MPESA_SHORTCODE);
+  const businessShortCode = firstNonEmpty(process.env.MPESA_BUSINESS_SHORTCODE) ?? shortcode;
+  const partyB = firstNonEmpty(process.env.MPESA_PARTYB) ?? businessShortCode;
   const appUrl = firstNonEmpty(process.env.APP_URL);
   const callbackUrl = firstNonEmpty(process.env.MPESA_CALLBACK_URL) ?? (appUrl ? `${appUrl}/api/mpesa/callback` : undefined);
   const rawEnvironment = firstNonEmpty(process.env.MPESA_ENV)?.toLowerCase();
   const environment = rawEnvironment === 'sandbox' ? 'sandbox' : 'production';
   const transactionType = firstNonEmpty(process.env.MPESA_TRANSACTION_TYPE) ?? 'CustomerPayBillOnline';
 
-  if (!consumerKey || !consumerSecret || !passkey || !shortcode || !callbackUrl) {
+  if (!consumerKey || !consumerSecret || !passkey || !shortcode || !businessShortCode || !partyB || !callbackUrl) {
     throw new Error('Missing M-Pesa Daraja credentials');
   }
 
   return {
+    businessShortCode,
     callbackUrl,
     consumerKey,
     consumerSecret,
     environment,
     passkey,
+    partyB,
     shortcode,
     transactionType,
   };
@@ -155,26 +192,50 @@ export async function initiateDarajaStkPush(payerPhone: string, amount: number, 
   const token = await getMpesaAccessToken(config);
   const timestamp = createTimestamp();
   const phoneNumber = cleanPhone(payerPhone);
-  const password = Buffer.from(`${config.shortcode}${config.passkey}${timestamp}`).toString('base64');
+  const password = Buffer.from(`${config.businessShortCode}${config.passkey}${timestamp}`).toString('base64');
   const baseUrl = getMpesaBaseUrl(config.environment);
-
-  const response = await axios.post<MpesaStkPushResponse>(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
-    BusinessShortCode: config.shortcode,
+  const accountReference = sanitizeAccountReference(reference);
+  const transactionDesc = sanitizeTransactionDescription(reference);
+  const requestBody = {
+    BusinessShortCode: config.businessShortCode,
     Password: password,
     Timestamp: timestamp,
     TransactionType: config.transactionType,
     Amount: Math.round(amount),
     PartyA: phoneNumber,
-    PartyB: config.shortcode,
+    PartyB: config.partyB,
     PhoneNumber: phoneNumber,
     CallBackURL: config.callbackUrl,
-    AccountReference: reference,
-    TransactionDesc: `Airtime purchase ${reference}`,
-  }, {
+    AccountReference: accountReference,
+    TransactionDesc: transactionDesc,
+  };
+
+  console.log('[M-PESA] STK request payload', {
+    amount: requestBody.Amount,
+    businessShortCode: maskCode(requestBody.BusinessShortCode),
+    callbackUrl: requestBody.CallBackURL,
+    environment: config.environment,
+    partyA: maskPhone(requestBody.PartyA),
+    partyB: maskCode(requestBody.PartyB),
+    rawReferenceLength: reference.length,
+    safeAccountReference: requestBody.AccountReference,
+    safeTransactionDesc: requestBody.TransactionDesc,
+    transactionType: requestBody.TransactionType,
+  });
+
+  const response = await axios.post<MpesaStkPushResponse>(`${baseUrl}/mpesa/stkpush/v1/processrequest`, requestBody, {
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
+  });
+
+  console.log('[M-PESA] STK request response', {
+    checkoutRequestId: response.data.CheckoutRequestID ?? 'missing',
+    customerMessage: response.data.CustomerMessage ?? 'missing',
+    merchantRequestId: response.data.MerchantRequestID ?? 'missing',
+    responseCode: response.data.ResponseCode ?? 'missing',
+    responseDescription: response.data.ResponseDescription ?? response.data.errorMessage ?? 'missing',
   });
 
   return response.data;

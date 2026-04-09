@@ -33,6 +33,13 @@ export async function POST(req: NextRequest) {
     const result = await initiateDarajaStkPush(payerPhone, amount, sessionId);
 
     if (result.ResponseCode !== '0' || !result.CheckoutRequestID) {
+      console.error('[M-PESA] STK initiation rejected', {
+        merchantRequestId: result.MerchantRequestID ?? 'missing',
+        responseCode: result.ResponseCode ?? result.errorCode ?? 'missing',
+        responseDescription: result.ResponseDescription ?? result.errorMessage ?? 'missing',
+        sessionId,
+      });
+
       await prisma.transaction.update({
         where: { transactionId: sessionId },
         data: {
@@ -46,13 +53,22 @@ export async function POST(req: NextRequest) {
       }), { status: 502 });
     }
 
+    const providerReference = [result.CheckoutRequestID, result.MerchantRequestID]
+      .filter(Boolean)
+      .map((value, index) => index === 0 ? `mpesa:${value}` : `mpesa-merchant:${value}`)
+      .join('|');
+
+    console.log('[M-PESA] STK initiation accepted', {
+      checkoutRequestId: result.CheckoutRequestID,
+      merchantRequestId: result.MerchantRequestID ?? 'missing',
+      providerReference,
+      sessionId,
+    });
+
     await prisma.transaction.update({
       where: { transactionId: sessionId },
       data: {
-        providerReference: [result.CheckoutRequestID, result.MerchantRequestID]
-          .filter(Boolean)
-          .map((value, index) => index === 0 ? `mpesa:${value}` : `mpesa-merchant:${value}`)
-          .join('|'),
+        providerReference,
       },
     });
 
@@ -68,7 +84,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.error('STK Push Error:', error?.response?.data || error);
+    console.error('STK Push Error:', {
+      response: error?.response?.data,
+      sessionId,
+      status: error?.response?.status,
+      statusText: error?.response?.statusText,
+    });
     return new Response(JSON.stringify({ error: 'Failed' }), { status: 500 });
   }
 }

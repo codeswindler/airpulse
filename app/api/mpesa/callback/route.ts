@@ -64,6 +64,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (callback.resultCode !== 0) {
+      console.warn('[M-PESA] Callback failed before fulfillment', {
+        checkoutRequestId: callback.checkoutRequestId || 'missing',
+        merchantRequestId: callback.merchantRequestId || 'missing',
+        resultCode: callback.resultCode,
+        resultDesc: callback.resultDesc,
+        transactionId: transaction.transactionId,
+      });
+
       await prisma.transaction.update({
         where: { id: transaction.id },
         data: { status: 'FAILED' },
@@ -83,11 +91,25 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    console.log('[M-PESA] Payment confirmed, starting Tupay fulfillment', {
+      amount: transaction.amount,
+      checkoutRequestId: callback.checkoutRequestId || 'missing',
+      targetPhone: `${transaction.targetPhone.slice(0, 3)}***${transaction.targetPhone.slice(-3)}`,
+      transactionId: transaction.transactionId,
+    });
+
     const airtimeRes = await buyAirtimeFromBalance(transaction.targetPhone, transaction.amount, transaction.transactionId);
     const providerReference = buildProviderReference(
       transaction.providerReference,
       airtimeRes?.id ? `tupay:${airtimeRes.id}` : null,
     );
+
+    console.log('[TUPAY] Fulfillment response after M-PESA success', {
+      providerReference,
+      status: airtimeRes?.status ?? 'missing',
+      transactionId: transaction.transactionId,
+      tupayId: airtimeRes?.id ?? 'missing',
+    });
 
     if (isTupaySuccessStatus(airtimeRes?.status)) {
       await prisma.transaction.update({
