@@ -11,6 +11,178 @@ export function clearSmsBalanceCache() {
   lastFetched = 0;
 }
 
+type SmsProvider = 'advanta' | 'onfon';
+
+type SmsSettings = {
+  businessName: string;
+  provider?: SmsProvider;
+  advantaApiKey?: string;
+  advantaPartnerId?: string;
+  advantaSenderId?: string;
+  onfonAccessKey?: string;
+  onfonApiKey?: string;
+  onfonClientId?: string;
+  onfonSenderId?: string;
+};
+
+type AirtimeNotificationStage = 'pending' | 'delivered' | 'failed';
+
+function firstNonEmpty(...values: Array<string | undefined | null>) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim() !== '') {
+      return value.trim();
+    }
+  }
+
+  return undefined;
+}
+
+function cleanPhone(phone: string) {
+  let normalized = phone.trim();
+
+  if (normalized.startsWith('+')) {
+    normalized = normalized.slice(1);
+  }
+
+  if (normalized.startsWith('0')) {
+    normalized = `254${normalized.slice(1)}`;
+  }
+
+  if (/^(7|1)\d{8}$/.test(normalized)) {
+    normalized = `254${normalized}`;
+  }
+
+  return normalized;
+}
+
+function formatAmount(amount: number) {
+  return Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
+}
+
+async function getSmsSettings(): Promise<SmsSettings> {
+  const settings = await prisma.systemSetting.findMany();
+  const find = (key: string) => settings.find((setting) => setting.key === key)?.value;
+
+  return {
+    provider: firstNonEmpty(find('sms_provider')) as SmsProvider | undefined,
+    businessName: firstNonEmpty(find('airpulse_business_name')) ?? 'AirPulse',
+    advantaApiKey: firstNonEmpty(find('advanta_api_key')),
+    advantaPartnerId: firstNonEmpty(find('advanta_partner_id')),
+    advantaSenderId: firstNonEmpty(find('advanta_sender_id')),
+    onfonAccessKey: firstNonEmpty(find('onfon_access_key')),
+    onfonApiKey: firstNonEmpty(find('onfon_api_key')),
+    onfonClientId: firstNonEmpty(find('onfon_client_id')),
+    onfonSenderId: firstNonEmpty(find('onfon_sender_id')),
+  };
+}
+
+export async function sendSms(phoneNumber: string, message: string) {
+  const settings = await getSmsSettings();
+  const provider = settings.provider;
+  const mobile = cleanPhone(phoneNumber);
+
+  if (!provider) {
+    console.warn('[SMS] No SMS provider configured; skipping notification');
+    return null;
+  }
+
+  if (provider === 'advanta') {
+    if (!settings.advantaApiKey || !settings.advantaPartnerId || !settings.advantaSenderId) {
+      console.warn('[SMS] Advanta credentials incomplete; skipping notification');
+      return null;
+    }
+
+    const response = await axios.post('https://quicksms.advantasms.com/api/services/sendsms', {
+      apikey: settings.advantaApiKey,
+      partnerID: settings.advantaPartnerId,
+      message,
+      mobile,
+      shortcode: settings.advantaSenderId,
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const firstResponse = response.data?.responses?.[0];
+    if (firstResponse?.['response-code'] === 200 || response.data?.['response-code'] === 200) {
+      return {
+        messageId: firstResponse?.messageid ? String(firstResponse.messageid) : undefined,
+        provider,
+      };
+    }
+
+    throw new Error(response.data?.['response-description'] || 'Advanta SMS send failed');
+  }
+
+  if (!settings.onfonApiKey || !settings.onfonClientId || !settings.onfonAccessKey || !settings.onfonSenderId) {
+    console.warn('[SMS] Onfon credentials incomplete; skipping notification');
+    return null;
+  }
+
+  const response = await axios.post('https://api.onfonmedia.co.ke/v1/sms/SendBulkSMS', {
+    ApiKey: settings.onfonApiKey,
+    ClientId: settings.onfonClientId,
+    SenderId: settings.onfonSenderId,
+    IsFlash: false,
+    IsUnicode: false,
+    MessageParameters: [
+      {
+        Number: mobile,
+        Text: message,
+      },
+    ],
+  }, {
+    headers: {
+      'AccessKey': settings.onfonAccessKey,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (response.data?.ErrorCode === 0) {
+    return {
+      messageId: response.data?.Data?.[0]?.MessageId ? String(response.data.Data[0].MessageId) : undefined,
+      provider,
+    };
+  }
+
+  throw new Error(response.data?.ErrorDescription || 'Onfon SMS send failed');
+}
+
+export async function sendAirtimeNotification(params: {
+  amount: number;
+  payerPhone: string;
+  stage: AirtimeNotificationStage;
+  targetPhone: string;
+  transactionId: string;
+}) {
+  const settings = await getSmsSettings();
+  const amountText = formatAmount(params.amount);
+  const businessName = settings.businessName;
+  let message = '';
+
+  if (params.stage === 'delivered') {
+    message = `${businessName}: Airtime worth KES ${amountText} was sent to ${cleanPhone(params.targetPhone)}. Ref ${params.transactionId}.`;
+  } else if (params.stage === 'pending') {
+    message = `${businessName}: Airtime worth KES ${amountText} to ${cleanPhone(params.targetPhone)} is being processed. Ref ${params.transactionId}.`;
+  } else {
+    message = `${businessName}: Airtime request of KES ${amountText} to ${cleanPhone(params.targetPhone)} failed. Ref ${params.transactionId}.`;
+  }
+
+  const result = await sendSms(params.payerPhone, message);
+
+  if (result) {
+    console.log('[SMS] Airtime notification sent', {
+      messageId: result.messageId ?? 'missing',
+      provider: result.provider,
+      stage: params.stage,
+      transactionId: params.transactionId,
+    });
+  }
+
+  return result;
+}
+
 export async function getSmsBalance() {
   const now = Date.now();
   if (cachedBalance !== null && (now - lastFetched < CACHE_TTL)) {

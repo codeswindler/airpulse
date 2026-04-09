@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buyAirtimeFromBalance, isTupayPendingStatus, isTupaySuccessStatus } from '@/lib/airpulseClient';
 import { parseMpesaCallback } from '@/lib/mpesaClient';
+import { sendAirtimeNotification } from '@/lib/smsClient';
 
 function buildProviderReference(...parts: Array<string | null | undefined>) {
   const values = new Set<string>();
@@ -20,6 +21,10 @@ function buildProviderReference(...parts: Array<string | null | undefined>) {
   }
 
   return Array.from(values).join('|');
+}
+
+function hasProviderFlag(providerReference: string | null | undefined, flag: string) {
+  return providerReference?.split('|').includes(flag) ?? false;
 }
 
 export async function POST(req: NextRequest) {
@@ -112,18 +117,52 @@ export async function POST(req: NextRequest) {
     });
 
     if (isTupaySuccessStatus(airtimeRes?.status)) {
+      let nextProviderReference = providerReference;
+
+      if (!hasProviderFlag(transaction.providerReference, 'sms:delivered')) {
+        try {
+          await sendAirtimeNotification({
+            amount: transaction.amount,
+            payerPhone: transaction.phoneNumber,
+            stage: 'delivered',
+            targetPhone: transaction.targetPhone,
+            transactionId: transaction.transactionId,
+          });
+          nextProviderReference = buildProviderReference(nextProviderReference, 'sms:delivered');
+        } catch (error) {
+          console.error('[SMS] Delivered notification failed', { error, transactionId: transaction.transactionId });
+        }
+      }
+
       await prisma.transaction.update({
         where: { id: transaction.id },
         data: {
-          providerReference,
+          providerReference: nextProviderReference,
           status: 'AIRTIME_DELIVERED',
         },
       });
     } else if (isTupayPendingStatus(airtimeRes?.status)) {
+      let nextProviderReference = providerReference;
+
+      if (!hasProviderFlag(transaction.providerReference, 'sms:pending')) {
+        try {
+          await sendAirtimeNotification({
+            amount: transaction.amount,
+            payerPhone: transaction.phoneNumber,
+            stage: 'pending',
+            targetPhone: transaction.targetPhone,
+            transactionId: transaction.transactionId,
+          });
+          nextProviderReference = buildProviderReference(nextProviderReference, 'sms:pending');
+        } catch (error) {
+          console.error('[SMS] Pending notification failed', { error, transactionId: transaction.transactionId });
+        }
+      }
+
       await prisma.transaction.update({
         where: { id: transaction.id },
         data: {
-          providerReference,
+          providerReference: nextProviderReference,
           status: 'PENDING_AIRTIME',
         },
       });

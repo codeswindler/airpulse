@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buyAirtimeFromBalance, isTupayPendingStatus, isTupaySuccessStatus } from '@/lib/airpulseClient';
+import { sendAirtimeNotification } from '@/lib/smsClient';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
@@ -58,19 +59,49 @@ export async function POST(req: NextRequest) {
     const providerReference = airtimeRes?.id ? `wallet|tupay:${airtimeRes.id}` : 'wallet';
 
     if (isTupaySuccessStatus(airtimeRes?.status)) {
+      let nextProviderReference = providerReference;
+
+      try {
+        await sendAirtimeNotification({
+          amount,
+          payerPhone,
+          stage: 'delivered',
+          targetPhone,
+          transactionId: txId,
+        });
+        nextProviderReference = `${nextProviderReference}|sms:delivered`;
+      } catch (error) {
+        console.error('[SMS] Delivered notification failed', { error, transactionId: txId });
+      }
+
       await prisma.transaction.update({
         where: { transactionId: txId },
         data: {
-          providerReference,
+          providerReference: nextProviderReference,
           status: 'AIRTIME_DELIVERED',
         }
       });
       return NextResponse.json({ success: true });
     } else if (isTupayPendingStatus(airtimeRes?.status)) {
+      let nextProviderReference = providerReference;
+
+      try {
+        await sendAirtimeNotification({
+          amount,
+          payerPhone,
+          stage: 'pending',
+          targetPhone,
+          transactionId: txId,
+        });
+        nextProviderReference = `${nextProviderReference}|sms:pending`;
+      } catch (error) {
+        console.error('[SMS] Pending notification failed', { error, transactionId: txId });
+      }
+
       await prisma.transaction.update({
         where: { transactionId: txId },
         data: {
-          providerReference,
+          providerReference: nextProviderReference,
           status: 'PENDING_AIRTIME',
         },
       });

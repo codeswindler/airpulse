@@ -4,6 +4,8 @@ import SearchBar from '@/components/SearchBar';
 import ExportCSV from '@/components/ExportCSV';
 import TopUpButton from '@/components/TopUpButton';
 
+export const dynamic = 'force-dynamic';
+
 export default async function CustomersWalletsPage({ searchParams }: { searchParams: { q?: string } }) {
   const query = searchParams.q || '';
   
