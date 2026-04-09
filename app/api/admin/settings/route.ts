@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { clearSmsBalanceCache } from '@/lib/smsClient';
-import { clearAirPulseTokenCache } from '@/lib/airpulseClient';
+import { clearAirPulseTokenCache, clearTupayBalanceCache } from '@/lib/airpulseClient';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     await Promise.all(updates);
     clearSmsBalanceCache();
     clearAirPulseTokenCache();
+    clearTupayBalanceCache();
     return NextResponse.json({ success: true });
 
   } catch (err) {

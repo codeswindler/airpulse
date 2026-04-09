@@ -6,6 +6,9 @@ const baseUrl = 'https://api.tupay.africa/v1';
 
 let cachedToken = '';
 let tokenExpiry = 0;
+let cachedBalance: { amount: number; currency: string } | null = null;
+let balanceExpiry = 0;
+const BALANCE_CACHE_TTL = 60 * 1000;
 
 type AirPulseConfig = {
   apiKey?: string;
@@ -105,6 +108,11 @@ export function clearAirPulseTokenCache() {
   tokenExpiry = 0;
 }
 
+export function clearTupayBalanceCache() {
+  cachedBalance = null;
+  balanceExpiry = 0;
+}
+
 export async function buyAirtimeFromBalance(targetPhone: string, amount: number, reference: string) {
   const config = await getAirPulseConfig();
   const token = await getAirPulseToken(config);
@@ -159,12 +167,77 @@ export async function buyAirtimeFromBalance(targetPhone: string, amount: number,
   throw lastError ?? new Error('Unable to fulfill airtime with Tupay');
 }
 
+export async function getTupayBalance() {
+  const now = Date.now();
+  if (cachedBalance && now < balanceExpiry) {
+    return cachedBalance;
+  }
+
+  const config = await getAirPulseConfig();
+  const token = await getAirPulseToken(config);
+  const attempts = ['/balance', '/b2b/balance'];
+  let lastError: unknown;
+
+  for (const endpoint of attempts) {
+    try {
+      const response = await axios.get(`${baseUrl}${endpoint}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const rawStatus = response.data?.status ?? response.data?.Status;
+      if (rawStatus !== undefined && Number(rawStatus) !== 20) {
+        throw new Error(`Unexpected Tupay balance status: ${rawStatus}`);
+      }
+
+      const amount = Number(response.data?.amount ?? response.data?.Amount);
+      const currency = String(response.data?.currency ?? response.data?.Currency ?? 'KES').trim() || 'KES';
+
+      if (!Number.isFinite(amount)) {
+        throw new Error('Tupay balance response missing amount');
+      }
+
+      cachedBalance = { amount, currency };
+      balanceExpiry = now + BALANCE_CACHE_TTL;
+      return cachedBalance;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('Unable to fetch Tupay balance');
+}
+
 export function isTupaySuccessStatus(status: unknown) {
   return Number(status) === 20;
 }
 
 export function isTupayPendingStatus(status: unknown) {
   return [0, 3, 31, 100, 101].includes(Number(status));
+}
+
+export async function getTupayTransactionStatus(transactionId: string) {
+  const config = await getAirPulseConfig();
+  const token = await getAirPulseToken(config);
+  const attempts = [`/status/${encodeURIComponent(transactionId)}`, `/b2b/status/${encodeURIComponent(transactionId)}`];
+  let lastError: unknown;
+
+  for (const endpoint of attempts) {
+    try {
+      const response = await axios.get(`${baseUrl}${endpoint}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      return response.data;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError ?? new Error('Unable to fetch Tupay transaction status');
 }
 
 function cleanPhone(phone: string) {

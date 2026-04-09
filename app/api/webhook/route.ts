@@ -27,7 +27,11 @@ function hasProviderFlag(providerReference: string | null | undefined, flag: str
   return providerReference?.split('|').includes(flag) ?? false;
 }
 
-export async function POST(req: NextRequest) {
+function acceptedResponse() {
+  return new Response('OK', { status: 200 });
+}
+
+async function handleWebhook(req: NextRequest) {
   try {
     const rawBody = await req.text();
     const signatureHeader = req.headers.get('x-webhook-signature');
@@ -46,7 +50,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const payload = JSON.parse(rawBody);
+    if (!rawBody.trim()) {
+      console.warn('[TUPAY] Callback received empty body');
+      return acceptedResponse();
+    }
+
+    let payload: any;
+
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.warn('[TUPAY] Callback body was not valid JSON', {
+        rawBodyLength: rawBody.length,
+      });
+      return acceptedResponse();
+    }
+
     const tupayId = typeof payload.id === 'string' ? payload.id.trim() : '';
     const reference = typeof payload.reference === 'string' ? payload.reference.trim() : '';
     const lookupConditions = [];
@@ -64,7 +83,7 @@ export async function POST(req: NextRequest) {
         status: payload.status,
       });
 
-      return new Response('OK', { status: 200 });
+      return acceptedResponse();
     }
 
     const tx = await prisma.transaction.findFirst({
@@ -81,7 +100,7 @@ export async function POST(req: NextRequest) {
         status: payload.status,
       });
 
-      return new Response('OK', { status: 200 });
+      return acceptedResponse();
     }
 
     const providerReference = buildProviderReference(
@@ -91,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     if (isTupaySuccessStatus(payload.status)) {
       if (tx.status === 'AIRTIME_DELIVERED') {
-        return new Response('OK', { status: 200 });
+        return acceptedResponse();
       }
 
       let nextProviderReference = providerReference;
@@ -120,7 +139,7 @@ export async function POST(req: NextRequest) {
       });
     } else if (isTupayPendingStatus(payload.status)) {
       if (tx.status === 'AIRTIME_DELIVERED') {
-        return new Response('OK', { status: 200 });
+        return acceptedResponse();
       }
 
       let nextProviderReference = providerReference;
@@ -168,9 +187,21 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return new Response('OK', { status: 200 });
+    return acceptedResponse();
   } catch (err: any) {
     console.error('Webhook Error:', err);
-    return new Response('Internal Error', { status: 500 });
+    return acceptedResponse();
   }
+}
+
+export async function GET() {
+  return acceptedResponse();
+}
+
+export async function HEAD() {
+  return new Response(null, { status: 200 });
+}
+
+export async function POST(req: NextRequest) {
+  return handleWebhook(req);
 }

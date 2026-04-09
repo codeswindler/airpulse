@@ -1,58 +1,55 @@
 import { prisma } from '@/lib/prisma';
 import DashboardChart from '@/components/DashboardChart';
-import { 
-  TrendingUp, 
-  Activity, 
-  CreditCard, 
-  Users, 
-  Zap, 
-  ShieldCheck, 
-  DollarSign, 
+import StatusPill from '@/components/StatusPill';
+import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/transactionDisplay';
+import { getTupayBalance } from '@/lib/airpulseClient';
+import {
+  TrendingUp,
+  Activity,
+  Zap,
+  ShieldCheck,
+  DollarSign,
   BarChart3,
-  Wallet
+  Wallet,
 } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Dashboard() {
-  const transactions = await prisma.transaction.findMany({ 
-    orderBy: { createdAt: 'desc' },
-    take: 10 
-  });
-
-  // Calculate live metrics
-  const totalVolumeRes = await prisma.transaction.aggregate({
-    _sum: { amount: true },
-    where: { status: 'AIRTIME_DELIVERED' }
-  });
-  const totalVolume = totalVolumeRes._sum.amount || 0;
-
-  const totalTx = await prisma.transaction.count();
-
-  // Assuming earnings is ~5% comm for demonstration
-  const totalEarnings = totalVolume * 0.05;
-
-  // Wallet Reserves
-  const walletReservesRes = await prisma.user.aggregate({
-    _sum: { walletBalance: true }
-  });
-  const totalWalletReserve = walletReservesRes._sum.walletBalance || 0;
-
-  // Active Sessions
-  const activeSessions = await prisma.ussdSession.count();
-
-  // Aggregate Last 30 Days chart data
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-  const historicalData = await prisma.transaction.findMany({
-    where: { 
-      status: 'AIRTIME_DELIVERED',
-      createdAt: { gte: thirtyDaysAgo }
-    },
-    select: { amount: true, createdAt: true },
-    orderBy: { createdAt: 'asc' }
-  });
+  const [transactions, totalVolumeRes, totalTx, walletReservesRes, activeSessions, historicalData, tupayBalance] = await Promise.all([
+    prisma.transaction.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    prisma.transaction.aggregate({
+      _sum: { amount: true },
+      where: { status: 'AIRTIME_DELIVERED' }
+    }),
+    prisma.transaction.count(),
+    prisma.user.aggregate({
+      _sum: { walletBalance: true }
+    }),
+    prisma.ussdSession.count(),
+    prisma.transaction.findMany({
+      where: {
+        status: 'AIRTIME_DELIVERED',
+        createdAt: { gte: thirtyDaysAgo }
+      },
+      select: { amount: true, createdAt: true },
+      orderBy: { createdAt: 'asc' }
+    }),
+    getTupayBalance().catch((error) => {
+      console.warn('[TUPAY] Balance lookup failed', error);
+      return null;
+    }),
+  ]);
+
+  const totalVolume = totalVolumeRes._sum.amount || 0;
+  const totalEarnings = totalVolume * 0.05;
+  const totalWalletReserve = walletReservesRes._sum.walletBalance || 0;
 
   // Group by date string 'MM-DD'
   const groupedData: Record<string, number> = {};
@@ -65,7 +62,14 @@ export default async function Dashboard() {
     date,
     amount: groupedData[date]
   }));
-  
+
+  const tupayBalanceLabel = tupayBalance
+    ? `${tupayBalance.currency === 'KES' ? 'Ksh' : tupayBalance.currency} ${tupayBalance.amount.toLocaleString('en-KE', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : 'not yet synced';
+
   return (
     <div className="dashboard-scroll">
       <div className="dashboard-header">
@@ -74,7 +78,7 @@ export default async function Dashboard() {
           <p>USSD Engine & Airtime healthy</p>
         </div>
         <div className="action-buttons">
-          <span className="text-amount">Tupay balance: not yet synced</span>
+          <span className="text-amount">Tupay balance: {tupayBalanceLabel}</span>
           <button className="btn-primary">Add funds</button>
         </div>
       </div>
@@ -178,39 +182,45 @@ export default async function Dashboard() {
 
         <div className="card">
           <div className="card-title" style={{ color: 'var(--text-primary)' }}>Recent Airtime Transactions</div>
-          
-          <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
-            <thead>
-              <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
-                <th style={{ padding: '12px 8px' }}>Date</th>
-                <th style={{ padding: '12px 8px' }}>Payer</th>
-                <th style={{ padding: '12px 8px' }}>Target</th>
-                <th style={{ padding: '12px 8px' }}>Amount</th>
-                <th style={{ padding: '12px 8px' }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ padding: '24px 8px', color: 'var(--text-secondary)', textAlign: 'center' }}>No recent transactions</td>
+          <div style={{ overflowX: 'auto', marginTop: 16 }}>
+            <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+              <thead>
+                <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+                  <th style={{ padding: '12px 8px' }}>Date</th>
+                  <th style={{ padding: '12px 8px' }}>Payer</th>
+                  <th style={{ padding: '12px 8px' }}>Target</th>
+                  <th style={{ padding: '12px 8px' }}>Amount</th>
+                  <th style={{ padding: '12px 8px' }}>M-Pesa</th>
+                  <th style={{ padding: '12px 8px' }}>Tupay</th>
                 </tr>
-              ) : transactions.map(tx => (
-                <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '12px 8px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
-                  <td style={{ padding: '12px 8px' }}>{tx.phoneNumber}</td>
-                  <td style={{ padding: '12px 8px' }}>{tx.targetPhone}</td>
-                  <td style={{ padding: '12px 8px' }}>Ksh {tx.amount}</td>
-                  <td style={{ padding: '12px 8px' }}>
-                    <span style={{ 
-                      color: tx.status === 'AIRTIME_DELIVERED' ? 'var(--success-color)' : tx.status === 'FAILED' ? 'var(--danger-color)' : 'var(--warning-color)'
-                    }}>
-                      {tx.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {transactions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '24px 8px', color: 'var(--text-secondary)', textAlign: 'center' }}>No recent transactions</td>
+                  </tr>
+                ) : transactions.map(tx => {
+                  const mpesaStatus = getMpesaVerificationStatus(tx);
+                  const tupayStatus = getTupayVerificationStatus(tx);
+
+                  return (
+                    <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                      <td style={{ padding: '12px 8px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
+                      <td style={{ padding: '12px 8px' }}>{tx.phoneNumber}</td>
+                      <td style={{ padding: '12px 8px' }}>{tx.targetPhone}</td>
+                      <td style={{ padding: '12px 8px' }}>Ksh {tx.amount}</td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <StatusPill label={mpesaStatus.label} tone={mpesaStatus.tone} />
+                      </td>
+                      <td style={{ padding: '12px 8px' }}>
+                        <StatusPill label={tupayStatus.label} tone={tupayStatus.tone} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
