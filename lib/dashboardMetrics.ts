@@ -1,3 +1,5 @@
+import type { StatusTone } from '@/lib/transactionDisplay';
+
 export type DashboardPeriodKey = 'today' | '7d' | '30d' | '90d';
 export type DashboardBucket = 'hour' | 'day';
 
@@ -30,6 +32,15 @@ type MetricRow = {
 };
 
 type TrendTone = 'success' | 'danger' | 'neutral';
+
+export type AirtimeRunwaySnapshot = {
+  headline: string;
+  detail: string;
+  statusLabel: string;
+  tone: StatusTone;
+  averageOrderAmount: number | null;
+  runwayOrders: number | null;
+};
 
 export function resolveDashboardPeriod(period: string | undefined, now = new Date()): DashboardPeriodWindow {
   const key: DashboardPeriodKey = period === 'today' || period === '7d' || period === '90d' ? period : '30d';
@@ -130,6 +141,63 @@ export function calculateTrend(current: number, previous: number): {
     label: `${isPositive ? '+' : '-'}${Math.abs(change).toFixed(0)}%`,
     tone: isPositive ? 'success' : 'danger',
     isPositive,
+  };
+}
+
+export function calculateAirtimeRunway(
+  balanceAmount: number | null,
+  settledVolume: number,
+  settledCount: number,
+): AirtimeRunwaySnapshot {
+  if (balanceAmount === null) {
+    return {
+      headline: 'Not synced',
+      detail: 'Waiting for a live Tupay balance response.',
+      statusLabel: 'Offline',
+      tone: 'neutral',
+      averageOrderAmount: null,
+      runwayOrders: null,
+    };
+  }
+
+  if (settledCount <= 0 || settledVolume <= 0) {
+    return {
+      headline: `Ksh ${formatKsh(balanceAmount, true)}`,
+      detail: 'Need more settled airtime orders to estimate runway.',
+      statusLabel: 'Estimating',
+      tone: 'info',
+      averageOrderAmount: null,
+      runwayOrders: null,
+    };
+  }
+
+  const averageOrderAmount = settledVolume / settledCount;
+  const runwayOrders = balanceAmount / averageOrderAmount;
+
+  let statusLabel: string;
+  let tone: StatusTone;
+
+  if (runwayOrders >= 100) {
+    statusLabel = 'Healthy';
+    tone = 'success';
+  } else if (runwayOrders >= 25) {
+    statusLabel = 'Comfortable';
+    tone = 'info';
+  } else if (runwayOrders >= 10) {
+    statusLabel = 'Watch';
+    tone = 'warning';
+  } else {
+    statusLabel = 'Critical';
+    tone = 'danger';
+  }
+
+  return {
+    headline: `${Math.floor(runwayOrders).toLocaleString()} orders left`,
+    detail: `Avg order Ksh ${formatKsh(averageOrderAmount, true)} | Balance Ksh ${formatKsh(balanceAmount, true)}`,
+    statusLabel,
+    tone,
+    averageOrderAmount,
+    runwayOrders,
   };
 }
 

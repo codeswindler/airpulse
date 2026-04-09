@@ -7,6 +7,7 @@ import { getTupayBalance } from '@/lib/airpulseClient';
 import {
   buildChartData,
   buildDateRangeFilter,
+  calculateAirtimeRunway,
   calculateTrend,
   COMMISSION_RATE,
   DASHBOARD_PERIOD_OPTIONS,
@@ -17,7 +18,6 @@ import {
   Activity,
   BarChart3,
   DollarSign,
-  ShieldCheck,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -58,7 +58,6 @@ function TrendCopy({
     </div>
   );
 }
-
 export default async function Dashboard({
   searchParams,
 }: {
@@ -68,8 +67,6 @@ export default async function Dashboard({
   const period = resolveDashboardPeriod(searchParams?.period, now);
   const currentDateFilter = buildDateRangeFilter(period.currentStart, period.currentEnd);
   const previousDateFilter = buildDateRangeFilter(period.previousStart, period.previousEnd);
-  const activeSessionWindow = new Date(now);
-  activeSessionWindow.setMinutes(activeSessionWindow.getMinutes() - ACTIVE_SESSION_WINDOW_MINUTES);
 
   const currentSettledWhere = {
     status: { in: [...SETTLED_STATUSES] },
@@ -93,10 +90,9 @@ export default async function Dashboard({
     transactions,
     totalVolumeRes,
     totalTx,
+    settledTxCount,
     previousTx,
     previousVolumeRes,
-    walletReservesRes,
-    activeSessions,
     historicalData,
     tupayBalance,
   ] = await Promise.all([
@@ -113,19 +109,14 @@ export default async function Dashboard({
       where: currentTransactionWhere,
     }),
     prisma.transaction.count({
+      where: currentSettledWhere,
+    }),
+    prisma.transaction.count({
       where: previousTransactionWhere,
     }),
     prisma.transaction.aggregate({
       _sum: { amount: true },
       where: previousSettledWhere,
-    }),
-    prisma.user.aggregate({
-      _sum: { walletBalance: true },
-    }),
-    prisma.ussdSession.count({
-      where: {
-        updatedAt: { gte: activeSessionWindow },
-      },
     }),
     prisma.transaction.findMany({
       where: currentSettledWhere,
@@ -142,7 +133,11 @@ export default async function Dashboard({
   const previousVolume = previousVolumeRes._sum.amount || 0;
   const totalEarnings = totalVolume * COMMISSION_RATE;
   const previousEarnings = previousVolume * COMMISSION_RATE;
-  const totalWalletReserve = walletReservesRes._sum.walletBalance || 0;
+  const airtimeRunway = calculateAirtimeRunway(
+    tupayBalance?.amount ?? null,
+    totalVolume,
+    settledTxCount,
+  );
 
   const volumeTrend = calculateTrend(totalVolume, previousVolume);
   const transactionsTrend = calculateTrend(totalTx, previousTx);
@@ -178,7 +173,7 @@ export default async function Dashboard({
           >
             <Wallet size={14} color="var(--accent-color)" />
             <span>Tupay balance</span>
-            <span style={{ color: 'var(--text-secondary)' }}>•</span>
+            <span style={{ color: 'var(--text-secondary)' }}>-</span>
             <strong>{tupayBalanceLabel}</strong>
           </div>
 
@@ -268,24 +263,32 @@ export default async function Dashboard({
         </div>
 
         <div className="card">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <ShieldCheck size={16} color="var(--success-color)" />
-            <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>SYSTEM HEALTH</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 18 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Wallet size={16} color="var(--accent-color)" />
+              <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>AIRTIME RUNWAY</div>
+            </div>
+            <StatusPill label={airtimeRunway.statusLabel} tone={airtimeRunway.tone} />
           </div>
-          <div style={{ fontSize: 13, color: 'var(--success-color)', fontWeight: 600 }}>All services operational</div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4, marginBottom: 24 }}>Latency: 45ms (Optimal)</div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <Wallet size={16} color="var(--accent-color)" />
-            <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>WALLET METRICS</div>
+          <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -0.8, marginBottom: 10 }}>
+            {airtimeRunway.headline}
           </div>
-          <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Reserved Balance</span>
-            <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>Ksh {formatKsh(totalWalletReserve)}</span>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+            {airtimeRunway.detail}
           </div>
-          <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ color: 'var(--text-secondary)' }}>Live Sessions</span>
-            <span style={{ color: 'var(--success-color)', fontWeight: 700 }}>{activeSessions} active</span>
+
+          <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'grid', gap: 12 }}>
+            <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Tupay balance</span>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
+                {tupayBalance ? `Ksh ${formatKsh(tupayBalance.amount, true)}` : 'Not synced'}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Settled orders</span>
+              <span style={{ color: 'var(--success-color)', fontWeight: 700 }}>{settledTxCount.toLocaleString()} orders</span>
+            </div>
           </div>
         </div>
       </div>
