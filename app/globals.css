@@ -236,39 +236,31 @@ body {
   align-items: center;
 }
 
-.growth-menu__summary {
-  list-style: none;
+.growth-menu__trigger {
+  appearance: none;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  background: rgba(59, 130, 246, 0.08);
+  color: inherit;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  color: inherit;
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(59, 130, 246, 0.16);
-  background: rgba(59, 130, 246, 0.08);
   transition: all 0.2s ease;
 }
 
-.growth-menu__summary::-webkit-details-marker {
-  display: none;
-}
-
-.growth-menu__summary::marker {
-  content: '';
-}
-
-.growth-menu[open] .growth-menu__summary {
+.growth-menu--open .growth-menu__trigger {
   color: var(--text-primary);
   background: rgba(59, 130, 246, 0.16);
   border-color: rgba(59, 130, 246, 0.3);
 }
 
-.growth-menu__summary:hover {
+.growth-menu__trigger:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--border-color);
