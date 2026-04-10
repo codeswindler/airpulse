@@ -51,10 +51,11 @@ function TrendCopy({
 export default async function Dashboard({
   searchParams,
 }: {
-  searchParams?: { period?: string };
+  searchParams?: Promise<{ period?: string }>;
 }) {
   const now = new Date();
-  const period = resolveDashboardPeriod(searchParams?.period, now);
+  const resolvedSearchParams = await searchParams;
+  const period = resolveDashboardPeriod(resolvedSearchParams?.period, now);
   const currentDateFilter = buildDateRangeFilter(period.currentStart, period.currentEnd);
   const previousDateFilter = buildDateRangeFilter(period.previousStart, period.previousEnd);
   const currentTransactionWhere = {
