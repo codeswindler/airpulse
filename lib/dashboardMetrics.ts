@@ -3,8 +3,6 @@ import type { StatusTone } from '@/lib/transactionDisplay';
 export type DashboardPeriodKey = 'today' | '7d' | '30d' | '90d';
 export type DashboardBucket = 'hour' | 'day';
 
-export const COMMISSION_RATE = 0.05;
-
 export const DASHBOARD_PERIOD_OPTIONS: Array<{
   key: DashboardPeriodKey;
   label: string;
@@ -33,13 +31,13 @@ type MetricRow = {
 
 type TrendTone = 'success' | 'danger' | 'neutral';
 
-export type AirtimeRunwaySnapshot = {
+export type DeliveryHealthSnapshot = {
   headline: string;
   detail: string;
   statusLabel: string;
   tone: StatusTone;
-  averageOrderAmount: number | null;
-  runwayOrders: number | null;
+  successRate: number | null;
+  resolvedCount: number;
 };
 
 export function resolveDashboardPeriod(period: string | undefined, now = new Date()): DashboardPeriodWindow {
@@ -144,60 +142,47 @@ export function calculateTrend(current: number, previous: number): {
   };
 }
 
-export function calculateAirtimeRunway(
-  balanceAmount: number | null,
-  settledVolume: number,
-  settledCount: number,
-): AirtimeRunwaySnapshot {
-  if (balanceAmount === null) {
+export function calculateDeliveryHealth(
+  deliveredCount: number,
+  failedCount: number,
+): DeliveryHealthSnapshot {
+  const resolvedCount = deliveredCount + failedCount;
+
+  if (resolvedCount <= 0) {
     return {
-      headline: 'Not synced',
-      detail: 'Waiting for a live Tupay balance response.',
-      statusLabel: 'Offline',
+      headline: 'No deliveries yet',
+      detail: 'Waiting for completed or failed airtime orders in this period.',
+      statusLabel: 'Idle',
       tone: 'neutral',
-      averageOrderAmount: null,
-      runwayOrders: null,
+      successRate: null,
+      resolvedCount: 0,
     };
   }
 
-  if (settledCount <= 0 || settledVolume <= 0) {
-    return {
-      headline: `Ksh ${formatKsh(balanceAmount, true)}`,
-      detail: 'Need more settled airtime orders to estimate runway.',
-      statusLabel: 'Estimating',
-      tone: 'info',
-      averageOrderAmount: null,
-      runwayOrders: null,
-    };
-  }
-
-  const averageOrderAmount = settledVolume / settledCount;
-  const runwayOrders = balanceAmount / averageOrderAmount;
+  const successRate = deliveredCount / resolvedCount;
+  const percent = Math.round(successRate * 100);
 
   let statusLabel: string;
   let tone: StatusTone;
 
-  if (runwayOrders >= 100) {
+  if (successRate >= 0.95) {
     statusLabel = 'Healthy';
     tone = 'success';
-  } else if (runwayOrders >= 25) {
-    statusLabel = 'Comfortable';
-    tone = 'info';
-  } else if (runwayOrders >= 10) {
+  } else if (successRate >= 0.8) {
     statusLabel = 'Watch';
-    tone = 'warning';
+    tone = 'info';
   } else {
-    statusLabel = 'Critical';
+    statusLabel = 'Attention';
     tone = 'danger';
   }
 
   return {
-    headline: `${Math.floor(runwayOrders).toLocaleString()} orders left`,
-    detail: `Avg order Ksh ${formatKsh(averageOrderAmount, true)} | Balance Ksh ${formatKsh(balanceAmount, true)}`,
+    headline: `${percent}% delivered`,
+    detail: `Resolved ${resolvedCount.toLocaleString()} orders | ${failedCount.toLocaleString()} failed`,
     statusLabel,
     tone,
-    averageOrderAmount,
-    runwayOrders,
+    successRate,
+    resolvedCount,
   };
 }
 

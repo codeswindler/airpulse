@@ -7,9 +7,8 @@ import { getTupayBalance } from '@/lib/airpulseClient';
 import {
   buildChartData,
   buildDateRangeFilter,
-  calculateAirtimeRunway,
+  calculateDeliveryHealth,
   calculateTrend,
-  COMMISSION_RATE,
   DASHBOARD_PERIOD_OPTIONS,
   formatKsh,
   resolveDashboardPeriod,
@@ -17,7 +16,8 @@ import {
 import {
   Activity,
   BarChart3,
-  DollarSign,
+  CheckCircle2,
+  Gauge,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -26,8 +26,9 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const SETTLED_STATUSES = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'] as const;
-const ACTIVE_SESSION_WINDOW_MINUTES = 15;
+const DELIVERED_STATUSES = ['AIRTIME_DELIVERED'] as const;
+const MPESA_VERIFIED_STATUSES = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'] as const;
+const FAILED_STATUSES = ['FAILED'] as const;
 
 function getPeriodHref(periodKey: string) {
   return periodKey === '30d' ? '/' : `/?period=${encodeURIComponent(periodKey)}`;
@@ -67,32 +68,44 @@ export default async function Dashboard({
   const period = resolveDashboardPeriod(searchParams?.period, now);
   const currentDateFilter = buildDateRangeFilter(period.currentStart, period.currentEnd);
   const previousDateFilter = buildDateRangeFilter(period.previousStart, period.previousEnd);
-
-  const currentSettledWhere = {
-    status: { in: [...SETTLED_STATUSES] },
-    createdAt: currentDateFilter,
-  };
-
-  const previousSettledWhere = {
-    status: { in: [...SETTLED_STATUSES] },
-    createdAt: previousDateFilter,
-  };
-
   const currentTransactionWhere = {
     createdAt: currentDateFilter,
   };
 
-  const previousTransactionWhere = {
+  const currentDeliveredWhere = {
+    status: { in: [...DELIVERED_STATUSES] },
+    createdAt: currentDateFilter,
+  };
+
+  const previousDeliveredWhere = {
+    status: { in: [...DELIVERED_STATUSES] },
     createdAt: previousDateFilter,
+  };
+
+  const currentVerifiedWhere = {
+    status: { in: [...MPESA_VERIFIED_STATUSES] },
+    createdAt: currentDateFilter,
+  };
+
+  const previousVerifiedWhere = {
+    status: { in: [...MPESA_VERIFIED_STATUSES] },
+    createdAt: previousDateFilter,
+  };
+
+  const currentFailedWhere = {
+    status: { in: [...FAILED_STATUSES] },
+    createdAt: currentDateFilter,
   };
 
   const [
     transactions,
-    totalVolumeRes,
-    totalTx,
-    settledTxCount,
-    previousTx,
-    previousVolumeRes,
+    deliveredVolumeRes,
+    deliveredCount,
+    verifiedCount,
+    failedCount,
+    previousDeliveredVolumeRes,
+    previousDeliveredCount,
+    previousVerifiedCount,
     historicalData,
     tupayBalance,
   ] = await Promise.all([
@@ -103,23 +116,29 @@ export default async function Dashboard({
     }),
     prisma.transaction.aggregate({
       _sum: { amount: true },
-      where: currentSettledWhere,
+      where: currentDeliveredWhere,
     }),
     prisma.transaction.count({
-      where: currentTransactionWhere,
+      where: currentDeliveredWhere,
     }),
     prisma.transaction.count({
-      where: currentSettledWhere,
+      where: currentVerifiedWhere,
     }),
     prisma.transaction.count({
-      where: previousTransactionWhere,
+      where: currentFailedWhere,
     }),
     prisma.transaction.aggregate({
       _sum: { amount: true },
-      where: previousSettledWhere,
+      where: previousDeliveredWhere,
+    }),
+    prisma.transaction.count({
+      where: previousDeliveredWhere,
+    }),
+    prisma.transaction.count({
+      where: previousVerifiedWhere,
     }),
     prisma.transaction.findMany({
-      where: currentSettledWhere,
+      where: currentDeliveredWhere,
       select: { amount: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     }),
@@ -129,19 +148,13 @@ export default async function Dashboard({
     }),
   ]);
 
-  const totalVolume = totalVolumeRes._sum.amount || 0;
-  const previousVolume = previousVolumeRes._sum.amount || 0;
-  const totalEarnings = totalVolume * COMMISSION_RATE;
-  const previousEarnings = previousVolume * COMMISSION_RATE;
-  const airtimeRunway = calculateAirtimeRunway(
-    tupayBalance?.amount ?? null,
-    totalVolume,
-    settledTxCount,
-  );
+  const deliveredVolume = deliveredVolumeRes._sum.amount || 0;
+  const previousDeliveredVolume = previousDeliveredVolumeRes._sum.amount || 0;
+  const deliveryHealth = calculateDeliveryHealth(deliveredCount, failedCount);
 
-  const volumeTrend = calculateTrend(totalVolume, previousVolume);
-  const transactionsTrend = calculateTrend(totalTx, previousTx);
-  const earningsTrend = calculateTrend(totalEarnings, previousEarnings);
+  const volumeTrend = calculateTrend(deliveredVolume, previousDeliveredVolume);
+  const deliveredTrend = calculateTrend(deliveredCount, previousDeliveredCount);
+  const verifiedTrend = calculateTrend(verifiedCount, previousVerifiedCount);
   const chartData = buildChartData(historicalData, period.bucket);
 
   const tupayBalanceLabel = tupayBalance
@@ -152,8 +165,8 @@ export default async function Dashboard({
     <div className="dashboard-scroll">
       <div className="dashboard-header" style={{ alignItems: 'flex-end', gap: 20 }}>
         <div>
-          <h1>Execution readiness</h1>
-          <p>USSD Engine & Airtime healthy</p>
+          <h1>Airtime Operations</h1>
+          <p>Live sales, verification, and delivery facts</p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
@@ -209,9 +222,9 @@ export default async function Dashboard({
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div className="card-title">Volume</div>
+              <div className="card-title">Airtime Sold</div>
               <div className="card-value" style={{ textShadow: '0 0 20px var(--accent-glow)' }}>
-                Ksh {formatKsh(totalVolume)}
+                Ksh {formatKsh(deliveredVolume, true)}
               </div>
             </div>
             <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
@@ -224,27 +237,27 @@ export default async function Dashboard({
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div className="card-title">Transactions</div>
-              <div className="card-value">{totalTx.toLocaleString()}</div>
+              <div className="card-title">Orders Completed</div>
+              <div className="card-value">{deliveredCount.toLocaleString()}</div>
             </div>
             <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
               <Activity size={20} color="var(--success-color)" />
             </div>
           </div>
-          <TrendCopy trend={transactionsTrend} comparisonLabel={period.comparisonLabel} />
+          <TrendCopy trend={deliveredTrend} comparisonLabel={period.comparisonLabel} />
         </div>
 
         <div className="card">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
-              <div className="card-title">Earnings (Comm. @ 5%)</div>
-              <div className="card-value">Ksh {formatKsh(totalEarnings, true)}</div>
+              <div className="card-title">M-Pesa Verified</div>
+              <div className="card-value">{verifiedCount.toLocaleString()}</div>
             </div>
             <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
-              <DollarSign size={20} color="var(--warning-color)" />
+              <CheckCircle2 size={20} color="var(--success-color)" />
             </div>
           </div>
-          <TrendCopy trend={earningsTrend} comparisonLabel={period.comparisonLabel} />
+          <TrendCopy trend={verifiedTrend} comparisonLabel={period.comparisonLabel} />
         </div>
       </div>
 
@@ -265,29 +278,29 @@ export default async function Dashboard({
         <div className="card">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Wallet size={16} color="var(--accent-color)" />
-              <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>AIRTIME RUNWAY</div>
+              <Gauge size={16} color="var(--accent-color)" />
+              <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>DELIVERY HEALTH</div>
             </div>
-            <StatusPill label={airtimeRunway.statusLabel} tone={airtimeRunway.tone} />
+            <StatusPill label={deliveryHealth.statusLabel} tone={deliveryHealth.tone} />
           </div>
 
           <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -0.8, marginBottom: 10 }}>
-            {airtimeRunway.headline}
+            {deliveryHealth.headline}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            {airtimeRunway.detail}
+            {deliveryHealth.detail}
           </div>
 
           <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'grid', gap: 12 }}>
             <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Tupay balance</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Resolved orders</span>
               <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                {tupayBalance ? `Ksh ${formatKsh(tupayBalance.amount, true)}` : 'Not synced'}
+                {deliveryHealth.resolvedCount.toLocaleString()}
               </span>
             </div>
             <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Settled orders</span>
-              <span style={{ color: 'var(--success-color)', fontWeight: 700 }}>{settledTxCount.toLocaleString()} orders</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Failed orders</span>
+              <span style={{ color: 'var(--danger-color)', fontWeight: 700 }}>{failedCount.toLocaleString()}</span>
             </div>
           </div>
         </div>
@@ -295,7 +308,7 @@ export default async function Dashboard({
 
       <div className="grid-bottom" style={{ gridTemplateColumns: '1fr' }}>
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-title" style={{ color: 'var(--text-primary)' }}>Performance ({period.label})</div>
+          <div className="card-title" style={{ color: 'var(--text-primary)' }}>Airtime Sold ({period.label})</div>
           <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{period.comparisonLabel}</div>
           <div style={{ marginTop: 16 }}>
             <DashboardChart data={chartData} />
