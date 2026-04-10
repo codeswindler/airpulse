@@ -130,14 +130,14 @@ export function calculateTrend(current: number, previous: number): {
   if (previous <= 0) {
     if (current <= 0) {
       return {
-        label: 'No prior data',
+        label: '0%',
         tone: 'neutral',
         isPositive: true,
       };
     }
 
     return {
-      label: 'New period',
+      label: '+100%',
       tone: 'success',
       isPositive: true,
     };

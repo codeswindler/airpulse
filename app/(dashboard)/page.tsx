@@ -1,6 +1,6 @@
-import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import DashboardChart from '@/components/DashboardChart';
+import GrowthFilterMenu from '@/components/GrowthFilterMenu';
 import StatusPill from '@/components/StatusPill';
 import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/transactionDisplay';
 import { getTupayBalance } from '@/lib/airpulseClient';
@@ -9,8 +9,8 @@ import {
   buildChartData,
   buildDateRangeFilter,
   calculateTrend,
-  DASHBOARD_PERIOD_OPTIONS,
   formatKsh,
+  type DashboardPeriodWindow,
   resolveDashboardPeriod,
 } from '@/lib/dashboardMetrics';
 import { checkMpesaConnection } from '@/lib/mpesaClient';
@@ -30,32 +30,21 @@ export const dynamic = 'force-dynamic';
 
 const MPESA_VERIFIED_STATUSES = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'] as const;
 
-function getPeriodHref(periodKey: string) {
-  return periodKey === '30d' ? '/' : `/?period=${encodeURIComponent(periodKey)}`;
-}
-
-function renderTrendText(label: string, comparisonLabel: string) {
-  if (label === 'New period' || label === 'No prior data') {
-    return label;
-  }
-
-  return `${label} ${comparisonLabel}`;
-}
-
 function TrendCopy({
   trend,
-  comparisonLabel,
+  period,
 }: {
   trend: ReturnType<typeof calculateTrend>;
-  comparisonLabel: string;
+  period: DashboardPeriodWindow;
 }) {
   const isPositive = trend.isPositive;
   const tone = trend.tone === 'danger' ? 'var(--danger-color)' : trend.tone === 'neutral' ? 'var(--text-secondary)' : 'var(--success-color)';
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tone, fontSize: 13, fontWeight: 600 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: tone, fontSize: 13, fontWeight: 600, position: 'relative' }}>
       {isPositive ? <TrendingUp size={14} /> : <TrendingDown size={14} />}
-      <span>{renderTrendText(trend.label, comparisonLabel)}</span>
+      <span>{trend.label}</span>
+      <GrowthFilterMenu period={period} />
     </div>
   );
 }
@@ -161,7 +150,7 @@ export default async function Dashboard({
           <p>Live sales, completed orders, and provider health</p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <div
             style={{
               display: 'inline-flex',
@@ -181,32 +170,6 @@ export default async function Dashboard({
             <span style={{ color: 'var(--text-secondary)' }}>-</span>
             <strong>{tupayBalanceLabel}</strong>
           </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            {DASHBOARD_PERIOD_OPTIONS.map((option) => {
-              const isActive = option.key === period.key;
-
-              return (
-                <Link
-                  key={option.key}
-                  href={getPeriodHref(option.key)}
-                  style={{
-                    textDecoration: 'none',
-                    padding: '6px 12px',
-                    borderRadius: 999,
-                    border: `1px solid ${isActive ? 'var(--accent-color)' : 'var(--border-color)'}`,
-                    backgroundColor: isActive ? 'rgba(59, 130, 246, 0.18)' : 'var(--bg-hover)',
-                    color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    letterSpacing: 0.2,
-                  }}
-                >
-                  {option.label}
-                </Link>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -223,7 +186,7 @@ export default async function Dashboard({
               <BarChart3 size={20} color="var(--accent-color)" />
             </div>
           </div>
-          <TrendCopy trend={volumeTrend} comparisonLabel={period.comparisonLabel} />
+          <TrendCopy trend={volumeTrend} period={period} />
         </div>
 
         <div className="card">
@@ -236,7 +199,7 @@ export default async function Dashboard({
               <CheckCircle2 size={20} color="var(--success-color)" />
             </div>
           </div>
-          <TrendCopy trend={completedTrend} comparisonLabel={period.comparisonLabel} />
+          <TrendCopy trend={completedTrend} period={period} />
         </div>
 
         <div className="card">
@@ -249,7 +212,7 @@ export default async function Dashboard({
               <TrendingUp size={20} color="var(--success-color)" />
             </div>
           </div>
-          <TrendCopy trend={earningsTrend} comparisonLabel={period.comparisonLabel} />
+          <TrendCopy trend={earningsTrend} period={period} />
         </div>
       </div>
 
