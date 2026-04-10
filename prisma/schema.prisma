@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = "mysql://root:RootPass123!@localhost:3306/airtimedb"
+  url      = env("DATABASE_URL")
 }
 
 model User {
