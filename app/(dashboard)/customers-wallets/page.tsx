@@ -35,7 +35,7 @@ export default async function CustomersWalletsPage({ searchParams }: { searchPar
       </div>
 
       <div className="card" style={{ marginTop: 24 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+        <table className="responsive-table">
           <thead>
             <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
               <th style={{ padding: '16px 8px' }}>User Context ID</th>
@@ -48,9 +48,9 @@ export default async function CustomersWalletsPage({ searchParams }: { searchPar
           <tbody>
             {users.map(u => (
               <tr key={u.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '16px 8px', color: 'var(--text-secondary)' }}>{u.id.substring(0, 8)}</td>
-                <td style={{ padding: '16px 8px', fontWeight: 600 }}>{u.phoneNumber}</td>
-                <td style={{ padding: '16px 8px' }}>
+                <td data-label="User Context ID" style={{ padding: '16px 8px', color: 'var(--text-secondary)' }}>{u.id.substring(0, 8)}</td>
+                <td data-label="Phone Number" style={{ padding: '16px 8px', fontWeight: 600 }}>{u.phoneNumber}</td>
+                <td data-label="Wallet Balance" style={{ padding: '16px 8px' }}>
                   <span style={{ 
                     color: u.walletBalance > 0 ? 'var(--success-color)' : 'var(--text-secondary)',
                     fontWeight: u.walletBalance > 0 ? 600 : 400
@@ -58,14 +58,14 @@ export default async function CustomersWalletsPage({ searchParams }: { searchPar
                     Ksh {u.walletBalance.toLocaleString()}
                   </span>
                 </td>
-                <td style={{ padding: '16px 8px' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                <td style={{ padding: '16px 8px', textAlign: 'right' }}>
+                <td data-label="Joined Date" style={{ padding: '16px 8px' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
+                <td data-label="Admin Actions" style={{ padding: '16px 8px', textAlign: 'right' }}>
                    <TopUpButton phoneNumber={u.phoneNumber} />
                 </td>
               </tr>
             ))}
             {users.length === 0 && (
-               <tr><td colSpan={5} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No customers found</td></tr>
+               <tr><td colSpan={5} data-no-label="true" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No customers found</td></tr>
             )}
           </tbody>
         </table>

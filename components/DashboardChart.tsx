@@ -12,11 +12,15 @@ import {
 
 export default function DashboardChart({ data }: { data: { date: string, amount: number }[] }) {
   if (!data || data.length === 0) {
-    return <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>No performance data available yet.</div>
+    return (
+      <div className="dashboard-chart dashboard-chart--empty">
+        No performance data available yet.
+      </div>
+    );
   }
 
   return (
-    <div style={{ width: '100%', height: '300px' }}>
+    <div className="dashboard-chart">
       <ResponsiveContainer>
         <AreaChart
           data={data}

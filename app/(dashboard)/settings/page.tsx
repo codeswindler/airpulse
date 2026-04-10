@@ -102,7 +102,7 @@ export default function SettingsPage() {
       )}
 
       {/* Tab Switcher */}
-      <div style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-color)', marginTop: '24px', marginBottom: '32px' }}>
+      <div className="settings-tabs" style={{ display: 'flex', gap: '32px', borderBottom: '1px solid var(--border-color)', marginTop: '24px', marginBottom: '32px' }}>
          <div 
            onClick={() => setActiveTab('GENERAL')}
            style={{ 
@@ -136,7 +136,7 @@ export default function SettingsPage() {
       {activeTab === 'GENERAL' ? (
         <div className="settings-grid" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+          <div className="settings-dual-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
              {/* USSD Section */}
              <div className="card">
                 <h3 style={{ marginBottom: 20, fontSize: '15px' }}>USSD Limits</h3>
@@ -261,7 +261,7 @@ export default function SettingsPage() {
                 </div>
              </div>
 
-             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+          <div className="settings-dual-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                    {config.sms_provider === 'advanta' ? (
                      <>

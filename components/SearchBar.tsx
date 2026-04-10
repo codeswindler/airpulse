@@ -30,7 +30,7 @@ export default function SearchBar({ placeholder = "Search..." }: { placeholder?:
   }, [query, pathname, router, searchParams]);
 
   return (
-    <div style={{ position: 'relative', width: '300px' }}>
+    <div style={{ position: 'relative', width: 'min(100%, 300px)' }}>
       <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-secondary)' }} />
       <input
         type="text"

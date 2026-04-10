@@ -270,7 +270,7 @@ export default async function Dashboard({
         <div className="card">
           <div className="card-title" style={{ color: 'var(--text-primary)' }}>Recent Airtime Transactions</div>
           <div style={{ overflowX: 'auto', marginTop: 16 }}>
-            <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+            <table className="responsive-table" style={{ minWidth: 900 }}>
               <thead>
                 <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
                   <th style={{ padding: '12px 8px' }}>Date</th>
@@ -284,7 +284,7 @@ export default async function Dashboard({
               <tbody>
                 {transactions.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ padding: '24px 8px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                    <td colSpan={6} data-no-label="true" style={{ padding: '24px 8px', color: 'var(--text-secondary)', textAlign: 'center' }}>
                       No recent transactions in this period
                     </td>
                   </tr>
@@ -295,14 +295,14 @@ export default async function Dashboard({
 
                     return (
                       <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                        <td style={{ padding: '12px 8px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
-                        <td style={{ padding: '12px 8px' }}>{tx.phoneNumber}</td>
-                        <td style={{ padding: '12px 8px' }}>{tx.targetPhone}</td>
-                        <td style={{ padding: '12px 8px' }}>Ksh {formatKsh(tx.amount)}</td>
-                        <td style={{ padding: '12px 8px' }}>
+                        <td data-label="Date" style={{ padding: '12px 8px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
+                        <td data-label="Payer" style={{ padding: '12px 8px' }}>{tx.phoneNumber}</td>
+                        <td data-label="Target" style={{ padding: '12px 8px' }}>{tx.targetPhone}</td>
+                        <td data-label="Amount" style={{ padding: '12px 8px' }}>Ksh {formatKsh(tx.amount)}</td>
+                        <td data-label="M-Pesa" style={{ padding: '12px 8px' }}>
                           <StatusPill label={mpesaStatus.label} tone={mpesaStatus.tone} />
                         </td>
-                        <td style={{ padding: '12px 8px' }}>
+                        <td data-label="Tupay" style={{ padding: '12px 8px' }}>
                           <StatusPill label={tupayStatus.label} tone={tupayStatus.tone} />
                         </td>
                       </tr>

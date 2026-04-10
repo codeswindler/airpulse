@@ -101,7 +101,7 @@ export default function SystemUsersPage() {
       </div>
 
       <div className="card" style={{ marginTop: 24, padding: 0 }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+        <table className="responsive-table">
           <thead>
             <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
               <th style={{ padding: '16px 24px' }}>User</th>
@@ -113,7 +113,7 @@ export default function SystemUsersPage() {
           <tbody>
             {admins.map(admin => (
               <tr key={admin.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                <td style={{ padding: '16px 24px' }}>
+                <td data-label="User" style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                      <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: 'var(--bg-hover)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <User size={18} color="var(--text-secondary)" />
@@ -124,7 +124,7 @@ export default function SystemUsersPage() {
                      </div>
                   </div>
                 </td>
-                <td style={{ padding: '16px 24px' }}>
+                <td data-label="Access Level" style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                      {admin.role === 'SUPERADMIN' ? <ShieldAlert size={14} color="var(--warning-color)" /> : <Shield size={14} color="var(--text-muted)" />}
                      <select 
@@ -145,10 +145,10 @@ export default function SystemUsersPage() {
                      </select>
                   </div>
                 </td>
-                <td style={{ padding: '16px 24px', color: 'var(--text-secondary)' }}>
+                <td data-label="Last Active" style={{ padding: '16px 24px', color: 'var(--text-secondary)' }}>
                    {new Date(admin.updatedAt).toLocaleDateString()}
                 </td>
-                <td style={{ padding: '16px 24px', textAlign: 'right' }}>
+                <td data-label="Actions" style={{ padding: '16px 24px', textAlign: 'right' }}>
                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                       <button 
                         onClick={() => handleDelete(admin.id)}

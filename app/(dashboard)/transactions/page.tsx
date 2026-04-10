@@ -54,7 +54,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
 
       <div className="card" style={{ marginTop: 24 }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 13, textAlign: 'left' }}>
+          <table className="responsive-table" style={{ minWidth: 980 }}>
             <thead>
               <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
                 <th style={{ padding: '16px 8px' }}>Date</th>
@@ -73,22 +73,22 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
 
                 return (
                   <tr key={tx.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '16px 8px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
-                    <td style={{ padding: '16px 8px', color: 'var(--text-secondary)' }}>{tx.transactionId.substring(0, 12)}...</td>
-                    <td style={{ padding: '16px 8px' }}>{tx.phoneNumber}</td>
-                    <td style={{ padding: '16px 8px' }}>{tx.targetPhone}</td>
-                    <td style={{ padding: '16px 8px', fontWeight: 500 }}>Ksh {tx.amount}</td>
-                    <td style={{ padding: '16px 8px' }}>
+                    <td data-label="Date" style={{ padding: '16px 8px' }}>{new Date(tx.createdAt).toLocaleString()}</td>
+                    <td data-label="Transaction ID" style={{ padding: '16px 8px', color: 'var(--text-secondary)' }}>{tx.transactionId.substring(0, 12)}...</td>
+                    <td data-label="Payer (Phone)" style={{ padding: '16px 8px' }}>{tx.phoneNumber}</td>
+                    <td data-label="Target (Recipient)" style={{ padding: '16px 8px' }}>{tx.targetPhone}</td>
+                    <td data-label="Amount" style={{ padding: '16px 8px', fontWeight: 500 }}>Ksh {tx.amount}</td>
+                    <td data-label="M-Pesa" style={{ padding: '16px 8px' }}>
                       <StatusPill label={mpesaStatus.label} tone={mpesaStatus.tone} />
                     </td>
-                    <td style={{ padding: '16px 8px' }}>
+                    <td data-label="Tupay" style={{ padding: '16px 8px' }}>
                       <StatusPill label={tupayStatus.label} tone={tupayStatus.tone} />
                     </td>
                   </tr>
                 );
               })}
               {transactions.length === 0 && (
-                <tr><td colSpan={7} style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No transactions found</td></tr>
+                <tr><td colSpan={7} data-no-label="true" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No transactions found</td></tr>
               )}
             </tbody>
           </table>
