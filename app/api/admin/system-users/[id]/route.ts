@@ -26,11 +26,36 @@ export async function PATCH(
   }
 
   try {
-    const { role } = await req.json();
+    const { role, businessId } = await req.json();
+
+    if (businessId) {
+      const business = await prisma.business.findUnique({ where: { id: businessId } });
+      if (!business) {
+        return NextResponse.json({ error: 'Selected business does not exist' }, { status: 400 });
+      }
+    }
+
     const updated = await prisma.admin.update({
       where: { id },
-      data: { role },
-      select: { id: true, email: true, name: true, role: true, updatedAt: true }
+      data: {
+        ...(role ? { role } : {}),
+        businessId: businessId === undefined ? undefined : businessId || null,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        updatedAt: true,
+        businessId: true,
+        business: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      }
     });
 
     return NextResponse.json(updated);

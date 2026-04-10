@@ -23,7 +23,21 @@ export async function GET(req: NextRequest) {
   try {
     const admins = await prisma.admin.findMany({
       orderBy: { createdAt: 'desc' },
-      select: { id: true, email: true, name: true, role: true, updatedAt: true }
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        updatedAt: true,
+        businessId: true,
+        business: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      }
     });
     return NextResponse.json({ admins });
   } catch (err) {
@@ -38,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, password, role } = await req.json();
+    const { name, email, password, role, businessId } = await req.json();
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -49,15 +63,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Admin with this email already exists' }, { status: 400 });
     }
 
+    if (businessId) {
+      const business = await prisma.business.findUnique({ where: { id: businessId } });
+      if (!business) {
+        return NextResponse.json({ error: 'Selected business does not exist' }, { status: 400 });
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const newAdmin = await prisma.admin.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: role || 'MODERATOR'
+        role: role || (businessId ? 'BUSINESS_STAFF' : 'MODERATOR'),
+        businessId: businessId || null,
       },
-      select: { id: true, email: true, name: true, role: true, updatedAt: true }
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        updatedAt: true,
+        businessId: true,
+        business: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      }
     });
 
     return NextResponse.json(newAdmin, { status: 201 });

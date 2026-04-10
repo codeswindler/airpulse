@@ -1,26 +1,32 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { User, Shield, ShieldAlert, Edit, Trash2, X, Loader2 } from 'lucide-react';
+import { Building2, User, Shield, ShieldAlert, Trash2, X, Loader2 } from 'lucide-react';
 
 export default function SystemUsersPage() {
   const [admins, setAdmins] = useState<any[]>([]);
+  const [businesses, setBusinesses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'MODERATOR' });
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'MODERATOR', businessId: '' });
 
   useEffect(() => {
-    fetchAdmins();
+    fetchData();
   }, []);
 
-  const fetchAdmins = async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch('/api/admin/system-users');
-      const data = await res.json();
-      setAdmins(data.admins || []);
+      const [adminsRes, businessesRes] = await Promise.all([
+        fetch('/api/admin/system-users'),
+        fetch('/api/admin/businesses'),
+      ]);
+      const adminsData = await adminsRes.json();
+      const businessesData = await businessesRes.json();
+      setAdmins(adminsData.admins || []);
+      setBusinesses(businessesData.businesses || []);
     } catch (err) {
-      console.error('Failed to fetch admins');
+      console.error('Failed to fetch access data', err);
     } finally {
       setLoading(false);
     }
@@ -33,7 +39,8 @@ export default function SystemUsersPage() {
       body: JSON.stringify({ role })
     });
     if (res.ok) {
-       setAdmins(admins.map(a => a.id === id ? { ...a, role } : a));
+       const updated = await res.json();
+       setAdmins(admins.map(a => a.id === id ? { ...a, ...updated } : a));
     } else {
        alert('Failed to update role. Only Superadmins can perform this action.');
     }
@@ -61,14 +68,17 @@ export default function SystemUsersPage() {
       const res = await fetch('/api/admin/system-users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          businessId: formData.businessId || undefined,
+        })
       });
       
       if (res.ok) {
         const newAdmin = await res.json();
         setAdmins([newAdmin, ...admins]);
         setShowModal(false);
-        setFormData({ name: '', email: '', password: '', role: 'MODERATOR' });
+        setFormData({ name: '', email: '', password: '', role: 'MODERATOR', businessId: '' });
       } else {
         const data = await res.json();
         alert(data.error || 'Failed to create admin');
@@ -105,6 +115,7 @@ export default function SystemUsersPage() {
           <thead>
             <tr style={{ color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)' }}>
               <th style={{ padding: '16px 24px' }}>User</th>
+              <th style={{ padding: '16px 24px' }}>Business</th>
               <th style={{ padding: '16px 24px' }}>Access Level</th>
               <th style={{ padding: '16px 24px' }}>Last Active</th>
               <th style={{ padding: '16px 24px', textAlign: 'right' }}>Actions</th>
@@ -124,6 +135,12 @@ export default function SystemUsersPage() {
                      </div>
                   </div>
                 </td>
+                <td data-label="Business" style={{ padding: '16px 24px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+                    <Building2 size={14} />
+                    <span>{admin.business?.name || 'Platform'}</span>
+                  </div>
+                </td>
                 <td data-label="Access Level" style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                      {admin.role === 'SUPERADMIN' ? <ShieldAlert size={14} color="var(--warning-color)" /> : <Shield size={14} color="var(--text-muted)" />}
@@ -141,6 +158,8 @@ export default function SystemUsersPage() {
                        }}
                      >
                         <option value="SUPERADMIN">Superadmin</option>
+                        <option value="BUSINESS_OWNER">Business Owner</option>
+                        <option value="BUSINESS_STAFF">Business Staff</option>
                         <option value="MODERATOR">Moderator</option>
                      </select>
                   </div>
@@ -227,6 +246,25 @@ export default function SystemUsersPage() {
                    />
                 </div>
                 <div>
+                   <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Business Account</label>
+                   <select 
+                     value={formData.businessId}
+                     onChange={(e) => setFormData({
+                       ...formData,
+                       businessId: e.target.value,
+                       role: e.target.value ? 'BUSINESS_OWNER' : formData.role,
+                     })}
+                     style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                   >
+                      <option value="">Platform / Global Account</option>
+                      {businesses.map((business) => (
+                        <option key={business.id} value={business.id}>
+                          {business.name}
+                        </option>
+                      ))}
+                   </select>
+                </div>
+                <div>
                    <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Role</label>
                    <select 
                      value={formData.role}
@@ -234,6 +272,8 @@ export default function SystemUsersPage() {
                      style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
                    >
                       <option value="MODERATOR">Moderator</option>
+                      <option value="BUSINESS_OWNER">Business Owner</option>
+                      <option value="BUSINESS_STAFF">Business Staff</option>
                       <option value="SUPERADMIN">Superadmin</option>
                    </select>
                 </div>

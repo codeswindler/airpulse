@@ -11,6 +11,15 @@ export async function POST(req: NextRequest) {
 
     const admin = await prisma.admin.findUnique({
       where: { email },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
     });
 
     if (!admin) {
@@ -28,7 +37,8 @@ export async function POST(req: NextRequest) {
       id: admin.id, 
       email: admin.email, 
       role: admin.role,
-      name: admin.name
+      name: admin.name,
+      businessId: admin.businessId,
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
@@ -42,7 +52,9 @@ export async function POST(req: NextRequest) {
         id: admin.id,
         email: admin.email,
         name: admin.name,
-        role: admin.role
+        role: admin.role,
+        businessId: admin.businessId,
+        business: admin.business,
       }
     });
 

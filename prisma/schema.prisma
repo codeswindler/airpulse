@@ -49,17 +49,58 @@ model Transaction {
 
 enum AdminRole {
   SUPERADMIN
+  BUSINESS_OWNER
+  BUSINESS_STAFF
   MODERATOR
 }
 
+enum BusinessStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Business {
+  id                     String         @id @default(uuid())
+  name                   String
+  slug                   String         @unique
+  serviceCode            String?        @unique
+  status                 BusinessStatus @default(ACTIVE)
+  ownerName              String?
+  ownerEmail             String?
+  description            String?
+  mpesaConsumerKey       String?
+  mpesaConsumerSecret    String?
+  mpesaPasskey           String?
+  mpesaShortcode         String?
+  mpesaBusinessShortcode String?
+  mpesaPartyB            String?
+  mpesaEnvironment       String         @default("production")
+  mpesaTransactionType   String         @default("CustomerBuyGoodsOnline")
+  mpesaCallbackUrl       String?
+  tupayUuid              String?
+  tupayApiKey            String?
+  tupaySecret            String?
+  smsProvider            String?
+  smsPartnerId           String?
+  smsApiKey              String?
+  smsSenderId            String?
+  smsAccessKey           String?
+  smsClientId            String?
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+  admins                 Admin[]
+}
+
 model Admin {
-  id        String    @id @default(uuid())
-  email     String    @unique
-  password  String    // Hashed
-  name      String?
-  role      AdminRole @default(MODERATOR)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id         String    @id @default(uuid())
+  email      String    @unique
+  password   String    // Hashed
+  name       String?
+  role       AdminRole @default(MODERATOR)
+  businessId String?
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 }
 
 model SystemSetting {

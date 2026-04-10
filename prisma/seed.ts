@@ -13,7 +13,18 @@ async function main() {
   await prisma.ussdSession.deleteMany();
   await prisma.user.deleteMany();
   await prisma.admin.deleteMany();
+  await prisma.business.deleteMany();
   await prisma.systemSetting.deleteMany();
+
+  const coreBusiness = await prisma.business.create({
+    data: {
+      name: 'AirPulse Core',
+      slug: 'airpulse-core',
+      description: 'Primary platform tenant for the current AirPulse deployment.',
+      status: 'ACTIVE',
+      ownerName: 'AirPulse Platform',
+    },
+  });
 
   // 2. Create Superadmin
   const hashedPassword = await bcrypt.hash('Admin@123!', 10);
@@ -22,7 +33,8 @@ async function main() {
       email: 'admin@airpulse.svc',
       password: hashedPassword,
       name: 'Super Admin',
-      role: 'SUPERADMIN'
+      role: 'SUPERADMIN',
+      businessId: coreBusiness.id,
     }
   });
   console.log('Created Superadmin: admin@airpulse.svc / Admin@123!');

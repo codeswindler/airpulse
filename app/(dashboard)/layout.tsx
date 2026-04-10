@@ -15,10 +15,37 @@ export default function DashboardLayout({
 }>) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [adminRole, setAdminRole] = useState<string | null>(null);
 
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchAdminRole = async () => {
+      try {
+        const response = await fetch('/api/admin/me', { cache: 'no-store' });
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+        if (active) {
+          setAdminRole(data.role || null);
+        }
+      } catch (error) {
+        console.warn('[LAYOUT] Failed to load admin role', error);
+      }
+    };
+
+    void fetchAdminRole();
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -82,6 +109,13 @@ export default function DashboardLayout({
               <span>Customers & Wallets</span>
             </li>
           </Link>
+          {adminRole === 'SUPERADMIN' ? (
+            <Link href="/businesses" style={{ textDecoration: 'none' }}>
+              <li className="sidebar-item">
+                <span>Businesses</span>
+              </li>
+            </Link>
+          ) : null}
 
           <div className="sidebar-section">SYSTEM</div>
           <Link href="/system-users" style={{ textDecoration: 'none' }}>
