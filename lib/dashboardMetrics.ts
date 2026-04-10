@@ -1,5 +1,3 @@
-import type { StatusTone } from '@/lib/transactionDisplay';
-
 export type DashboardPeriodKey = 'today' | '7d' | '30d' | '90d';
 export type DashboardBucket = 'hour' | 'day';
 
@@ -31,44 +29,57 @@ type MetricRow = {
 
 type TrendTone = 'success' | 'danger' | 'neutral';
 
-export type DeliveryHealthSnapshot = {
-  headline: string;
-  detail: string;
-  statusLabel: string;
-  tone: StatusTone;
-  successRate: number | null;
-  resolvedCount: number;
-};
+const NAIROBI_TIME_ZONE = 'Africa/Nairobi';
+const NAIROBI_OFFSET_MS = 3 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const EARNING_RATE = 0.06;
+
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function toNairobiDate(date: Date) {
+  return new Date(date.getTime() + NAIROBI_OFFSET_MS);
+}
+
+function getNairobiCalendarParts(date: Date) {
+  const zoned = toNairobiDate(date);
+
+  return {
+    year: zoned.getUTCFullYear(),
+    month: zoned.getUTCMonth() + 1,
+    day: zoned.getUTCDate(),
+    hour: zoned.getUTCHours(),
+    minute: zoned.getUTCMinutes(),
+    second: zoned.getUTCSeconds(),
+  };
+}
+
+function startOfNairobiDay(date: Date) {
+  const parts = getNairobiCalendarParts(date);
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day) - NAIROBI_OFFSET_MS);
+}
 
 export function resolveDashboardPeriod(period: string | undefined, now = new Date()): DashboardPeriodWindow {
   const key: DashboardPeriodKey = period === 'today' || period === '7d' || period === '90d' ? period : '30d';
   const currentEnd = new Date(now);
-  const currentStart = new Date(now);
   const bucket: DashboardBucket = key === 'today' ? 'hour' : 'day';
+  let currentStart: Date;
+  let previousStart: Date;
+  let previousEnd: Date;
 
   if (key === 'today') {
-    currentStart.setHours(0, 0, 0, 0);
-  } else if (key === '7d') {
-    currentStart.setDate(currentStart.getDate() - 7);
-  } else if (key === '90d') {
-    currentStart.setDate(currentStart.getDate() - 90);
+    currentStart = startOfNairobiDay(currentEnd);
+    const periodMs = currentEnd.getTime() - currentStart.getTime();
+    previousStart = new Date(currentStart.getTime() - periodMs);
+    previousEnd = new Date(currentStart.getTime());
   } else {
-    currentStart.setDate(currentStart.getDate() - 30);
-  }
-
-  const periodMs = currentEnd.getTime() - currentStart.getTime();
-  const previousStart = new Date(currentStart);
-  const previousEnd = new Date(currentStart);
-
-  if (key === 'today') {
-    const previousDayStart = new Date(currentStart);
-    previousDayStart.setDate(previousDayStart.getDate() - 1);
-
-    previousStart.setTime(previousDayStart.getTime());
-    previousEnd.setTime(previousDayStart.getTime() + periodMs);
-  } else {
-    previousStart.setTime(currentStart.getTime() - periodMs);
-    previousEnd.setTime(currentStart.getTime());
+    const days = key === '7d' ? 7 : key === '90d' ? 90 : 30;
+    const durationMs = days * DAY_MS;
+    currentStart = new Date(currentEnd.getTime() - durationMs);
+    previousStart = new Date(currentStart.getTime() - durationMs);
+    previousEnd = new Date(currentStart.getTime());
   }
 
   const labelMap: Record<DashboardPeriodKey, string> = {
@@ -142,48 +153,8 @@ export function calculateTrend(current: number, previous: number): {
   };
 }
 
-export function calculateDeliveryHealth(
-  deliveredCount: number,
-  failedCount: number,
-): DeliveryHealthSnapshot {
-  const resolvedCount = deliveredCount + failedCount;
-
-  if (resolvedCount <= 0) {
-    return {
-      headline: 'No deliveries yet',
-      detail: 'Waiting for completed or failed airtime orders in this period.',
-      statusLabel: 'Idle',
-      tone: 'neutral',
-      successRate: null,
-      resolvedCount: 0,
-    };
-  }
-
-  const successRate = deliveredCount / resolvedCount;
-  const percent = Math.round(successRate * 100);
-
-  let statusLabel: string;
-  let tone: StatusTone;
-
-  if (successRate >= 0.95) {
-    statusLabel = 'Healthy';
-    tone = 'success';
-  } else if (successRate >= 0.8) {
-    statusLabel = 'Watch';
-    tone = 'info';
-  } else {
-    statusLabel = 'Attention';
-    tone = 'danger';
-  }
-
-  return {
-    headline: `${percent}% delivered`,
-    detail: `Resolved ${resolvedCount.toLocaleString()} orders | ${failedCount.toLocaleString()} failed`,
-    statusLabel,
-    tone,
-    successRate,
-    resolvedCount,
-  };
+export function calculateEarnings(volume: number, rate = EARNING_RATE) {
+  return volume * rate;
 }
 
 export function buildChartData(rows: MetricRow[], bucket: DashboardBucket) {
@@ -191,15 +162,24 @@ export function buildChartData(rows: MetricRow[], bucket: DashboardBucket) {
 
   for (const row of rows) {
     const date = new Date(row.createdAt);
+    const zoned = toNairobiDate(date);
+    const year = zoned.getUTCFullYear();
+    const month = zoned.getUTCMonth() + 1;
+    const day = zoned.getUTCDate();
+    const hour = zoned.getUTCHours();
     const sortKey = bucket === 'hour'
-      ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), date.getHours()).getTime()
-      : new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+      ? Date.UTC(year, month - 1, day, hour)
+      : Date.UTC(year, month - 1, day);
     const key = bucket === 'hour'
-      ? `${date.toISOString().slice(0, 13)}`
-      : `${date.toISOString().slice(0, 10)}`;
+      ? `${year}-${pad(month)}-${pad(day)}T${pad(hour)}`
+      : `${year}-${pad(month)}-${pad(day)}`;
     const label = bucket === 'hour'
-      ? `${String(date.getHours()).padStart(2, '0')}:00`
-      : date.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
+      ? `${pad(hour)}:00`
+      : new Intl.DateTimeFormat('en-KE', {
+          month: 'short',
+          day: 'numeric',
+          timeZone: NAIROBI_TIME_ZONE,
+        }).format(date);
 
     const existing = grouped.get(key);
     if (existing) {

@@ -163,8 +163,8 @@ function getMpesaConfig(): MpesaConfig {
   };
 }
 
-async function getMpesaAccessToken(config: MpesaConfig) {
-  if (cachedToken && Date.now() < tokenExpiry) {
+async function getMpesaAccessToken(config: MpesaConfig, options: { bypassCache?: boolean } = {}) {
+  if (!options.bypassCache && cachedToken && Date.now() < tokenExpiry) {
     return cachedToken;
   }
 
@@ -185,6 +185,17 @@ async function getMpesaAccessToken(config: MpesaConfig) {
 export function clearMpesaTokenCache() {
   cachedToken = '';
   tokenExpiry = 0;
+}
+
+export async function checkMpesaConnection() {
+  try {
+    const config = getMpesaConfig();
+    await getMpesaAccessToken(config, { bypassCache: true });
+    return true;
+  } catch (error) {
+    console.warn('[M-PESA] Connection probe failed', error);
+    return false;
+  }
 }
 
 export async function initiateDarajaStkPush(payerPhone: string, amount: number, reference: string) {

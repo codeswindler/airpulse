@@ -5,14 +5,16 @@ import StatusPill from '@/components/StatusPill';
 import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/transactionDisplay';
 import { getTupayBalance } from '@/lib/airpulseClient';
 import {
+  calculateEarnings,
   buildChartData,
   buildDateRangeFilter,
-  calculateDeliveryHealth,
   calculateTrend,
   DASHBOARD_PERIOD_OPTIONS,
   formatKsh,
   resolveDashboardPeriod,
 } from '@/lib/dashboardMetrics';
+import { checkMpesaConnection } from '@/lib/mpesaClient';
+import { checkSmsConnection } from '@/lib/smsClient';
 import {
   Activity,
   BarChart3,
@@ -26,9 +28,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-const DELIVERED_STATUSES = ['AIRTIME_DELIVERED'] as const;
 const MPESA_VERIFIED_STATUSES = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'] as const;
-const FAILED_STATUSES = ['FAILED'] as const;
 
 function getPeriodHref(periodKey: string) {
   return periodKey === '30d' ? '/' : `/?period=${encodeURIComponent(periodKey)}`;
@@ -72,42 +72,26 @@ export default async function Dashboard({
     createdAt: currentDateFilter,
   };
 
-  const currentDeliveredWhere = {
-    status: { in: [...DELIVERED_STATUSES] },
-    createdAt: currentDateFilter,
-  };
-
-  const previousDeliveredWhere = {
-    status: { in: [...DELIVERED_STATUSES] },
-    createdAt: previousDateFilter,
-  };
-
-  const currentVerifiedWhere = {
+  const currentCompletedWhere = {
     status: { in: [...MPESA_VERIFIED_STATUSES] },
     createdAt: currentDateFilter,
   };
 
-  const previousVerifiedWhere = {
+  const previousCompletedWhere = {
     status: { in: [...MPESA_VERIFIED_STATUSES] },
     createdAt: previousDateFilter,
-  };
-
-  const currentFailedWhere = {
-    status: { in: [...FAILED_STATUSES] },
-    createdAt: currentDateFilter,
   };
 
   const [
     transactions,
-    deliveredVolumeRes,
-    deliveredCount,
-    verifiedCount,
-    failedCount,
-    previousDeliveredVolumeRes,
-    previousDeliveredCount,
-    previousVerifiedCount,
+    soldVolumeRes,
+    completedCount,
+    previousSoldVolumeRes,
+    previousCompletedCount,
     historicalData,
     tupayBalance,
+    smsHealthy,
+    mpesaHealthy,
   ] = await Promise.all([
     prisma.transaction.findMany({
       where: currentTransactionWhere,
@@ -116,29 +100,20 @@ export default async function Dashboard({
     }),
     prisma.transaction.aggregate({
       _sum: { amount: true },
-      where: currentDeliveredWhere,
+      where: currentCompletedWhere,
     }),
     prisma.transaction.count({
-      where: currentDeliveredWhere,
-    }),
-    prisma.transaction.count({
-      where: currentVerifiedWhere,
-    }),
-    prisma.transaction.count({
-      where: currentFailedWhere,
+      where: currentCompletedWhere,
     }),
     prisma.transaction.aggregate({
       _sum: { amount: true },
-      where: previousDeliveredWhere,
+      where: previousCompletedWhere,
     }),
     prisma.transaction.count({
-      where: previousDeliveredWhere,
-    }),
-    prisma.transaction.count({
-      where: previousVerifiedWhere,
+      where: previousCompletedWhere,
     }),
     prisma.transaction.findMany({
-      where: currentDeliveredWhere,
+      where: currentCompletedWhere,
       select: { amount: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     }),
@@ -146,27 +121,44 @@ export default async function Dashboard({
       console.warn('[TUPAY] Balance lookup failed', error);
       return null;
     }),
+    checkSmsConnection().catch((error) => {
+      console.warn('[SMS] Health probe failed', error);
+      return false;
+    }),
+    checkMpesaConnection().catch((error) => {
+      console.warn('[M-PESA] Health probe failed', error);
+      return false;
+    }),
   ]);
 
-  const deliveredVolume = deliveredVolumeRes._sum.amount || 0;
-  const previousDeliveredVolume = previousDeliveredVolumeRes._sum.amount || 0;
-  const deliveryHealth = calculateDeliveryHealth(deliveredCount, failedCount);
+  const soldVolume = soldVolumeRes._sum.amount || 0;
+  const previousSoldVolume = previousSoldVolumeRes._sum.amount || 0;
+  const earnings = calculateEarnings(soldVolume);
+  const previousEarnings = calculateEarnings(previousSoldVolume);
 
-  const volumeTrend = calculateTrend(deliveredVolume, previousDeliveredVolume);
-  const deliveredTrend = calculateTrend(deliveredCount, previousDeliveredCount);
-  const verifiedTrend = calculateTrend(verifiedCount, previousVerifiedCount);
+  const volumeTrend = calculateTrend(soldVolume, previousSoldVolume);
+  const completedTrend = calculateTrend(completedCount, previousCompletedCount);
+  const earningsTrend = calculateTrend(earnings, previousEarnings);
   const chartData = buildChartData(historicalData, period.bucket);
 
   const tupayBalanceLabel = tupayBalance
     ? `Ksh ${formatKsh(tupayBalance.amount, true)}`
     : 'not yet synced';
+  const systemServices = [
+    { label: 'Tupay API', live: Boolean(tupayBalance) },
+    { label: 'SMS API', live: smsHealthy },
+    { label: 'M-Pesa API', live: mpesaHealthy },
+  ];
+  const liveCount = systemServices.filter((service) => service.live).length;
+  const systemHealthTone = liveCount === systemServices.length ? 'success' : liveCount === 0 ? 'danger' : 'warning';
+  const systemHealthHeadline = liveCount === systemServices.length ? 'All services live' : `${liveCount}/${systemServices.length} live`;
 
   return (
     <div className="dashboard-scroll">
       <div className="dashboard-header" style={{ alignItems: 'flex-end', gap: 20 }}>
         <div>
           <h1>Airtime Operations</h1>
-          <p>Live sales, verification, and delivery facts</p>
+          <p>Live sales, completed orders, and provider health</p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 12 }}>
@@ -224,7 +216,7 @@ export default async function Dashboard({
             <div>
               <div className="card-title">Airtime Sold</div>
               <div className="card-value" style={{ textShadow: '0 0 20px var(--accent-glow)' }}>
-                Ksh {formatKsh(deliveredVolume, true)}
+                Ksh {formatKsh(soldVolume, true)}
               </div>
             </div>
             <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
@@ -238,26 +230,26 @@ export default async function Dashboard({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div className="card-title">Orders Completed</div>
-              <div className="card-value">{deliveredCount.toLocaleString()}</div>
-            </div>
-            <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
-              <Activity size={20} color="var(--success-color)" />
-            </div>
-          </div>
-          <TrendCopy trend={deliveredTrend} comparisonLabel={period.comparisonLabel} />
-        </div>
-
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div className="card-title">M-Pesa Verified</div>
-              <div className="card-value">{verifiedCount.toLocaleString()}</div>
+              <div className="card-value">{completedCount.toLocaleString()}</div>
             </div>
             <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
               <CheckCircle2 size={20} color="var(--success-color)" />
             </div>
           </div>
-          <TrendCopy trend={verifiedTrend} comparisonLabel={period.comparisonLabel} />
+          <TrendCopy trend={completedTrend} comparisonLabel={period.comparisonLabel} />
+        </div>
+
+        <div className="card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div className="card-title">Earnings</div>
+              <div className="card-value">Ksh {formatKsh(earnings, true)}</div>
+            </div>
+            <div style={{ padding: '8px', background: 'var(--bg-hover)', borderRadius: '12px' }}>
+              <TrendingUp size={20} color="var(--success-color)" />
+            </div>
+          </div>
+          <TrendCopy trend={earningsTrend} comparisonLabel={period.comparisonLabel} />
         </div>
       </div>
 
@@ -279,29 +271,25 @@ export default async function Dashboard({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <Gauge size={16} color="var(--accent-color)" />
-              <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>DELIVERY HEALTH</div>
+              <div className="card-title" style={{ fontSize: 11, letterSpacing: 0.5, marginBottom: 0 }}>SYSTEM HEALTH</div>
             </div>
-            <StatusPill label={deliveryHealth.statusLabel} tone={deliveryHealth.tone} />
+            <StatusPill label={systemHealthHeadline} tone={systemHealthTone} />
           </div>
 
           <div style={{ fontSize: 32, fontWeight: 800, letterSpacing: -0.8, marginBottom: 10 }}>
-            {deliveryHealth.headline}
+            {systemHealthHeadline}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
-            {deliveryHealth.detail}
+            Live/offline probes for Tupay, SMS, and M-Pesa connections.
           </div>
 
           <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'grid', gap: 12 }}>
-            <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Resolved orders</span>
-              <span style={{ color: 'var(--text-primary)', fontWeight: 700 }}>
-                {deliveryHealth.resolvedCount.toLocaleString()}
-              </span>
-            </div>
-            <div style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Failed orders</span>
-              <span style={{ color: 'var(--danger-color)', fontWeight: 700 }}>{failedCount.toLocaleString()}</span>
-            </div>
+            {systemServices.map((service) => (
+              <div key={service.label} style={{ fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>{service.label}</span>
+                <StatusPill label={service.live ? 'Live' : 'Offline'} tone={service.live ? 'success' : 'danger'} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
