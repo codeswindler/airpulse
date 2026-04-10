@@ -234,6 +234,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: center;
+  z-index: 50;
 }
 
 .growth-menu__trigger {
@@ -270,7 +271,7 @@ body {
   position: absolute;
   top: calc(100% + 10px);
   left: 0;
-  z-index: 20;
+  z-index: 100;
   min-width: 230px;
   padding: 14px;
   border-radius: 16px;
@@ -303,6 +304,8 @@ body {
 }
 
 .growth-menu__option {
+  appearance: none;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -310,11 +313,13 @@ body {
   padding: 8px 10px;
   border-radius: 12px;
   border: 1px solid transparent;
-  text-decoration: none;
+  background: transparent;
+  cursor: pointer;
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
   transition: all 0.2s ease;
+  text-align: left;
 }
 
 .growth-menu__option:hover {
