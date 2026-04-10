@@ -36,6 +36,7 @@ export default function GrowthFilterMenu({ period }: { period: DashboardPeriodWi
   const menuId = useId();
   const activeId = useSyncExternalStore(subscribeMenu, () => activeMenuId, () => null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const open = activeId === menuId;
   const [panelStyle, setPanelStyle] = useState<{ top: number; left: number } | null>(null);
 
@@ -80,7 +81,10 @@ export default function GrowthFilterMenu({ period }: { period: DashboardPeriodWi
       }
 
       const target = event.target as Node | null;
-      if (target && rootRef.current && !rootRef.current.contains(target)) {
+      const clickedTrigger = Boolean(target && rootRef.current && rootRef.current.contains(target));
+      const clickedPanel = Boolean(target && panelRef.current && panelRef.current.contains(target));
+
+      if (!clickedTrigger && !clickedPanel) {
         emitMenuChange(null);
       }
     };
@@ -110,6 +114,7 @@ export default function GrowthFilterMenu({ period }: { period: DashboardPeriodWi
       {open && panelStyle && typeof document !== 'undefined'
         ? createPortal(
             <div
+              ref={panelRef}
               className="growth-menu__panel"
               role="menu"
               aria-label="Compare with"
