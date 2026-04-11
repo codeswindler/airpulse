@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
+import { getSelectedBusinessIdFromRequest } from '@/lib/adminContext';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
@@ -26,20 +27,34 @@ export async function PATCH(
   }
 
   try {
-    const { role, businessId } = await req.json();
+    const authBusinessId = typeof auth.businessId === 'string' && auth.businessId.trim()
+      ? auth.businessId.trim()
+      : null;
+    const selectedBusinessId = await getSelectedBusinessIdFromRequest(req, authBusinessId, auth as any);
+    if (!selectedBusinessId) {
+      return NextResponse.json({ error: 'Select a business first' }, { status: 400 });
+    }
 
-    if (businessId) {
-      const business = await prisma.business.findUnique({ where: { id: businessId } });
-      if (!business) {
-        return NextResponse.json({ error: 'Selected business does not exist' }, { status: 400 });
-      }
+    const { role } = await req.json();
+    const normalizedRole = typeof role === 'string' ? role.toUpperCase() : '';
+
+    if (!['BUSINESS_OWNER', 'BUSINESS_STAFF'].includes(normalizedRole)) {
+      return NextResponse.json({ error: 'Invalid role for a business account' }, { status: 400 });
+    }
+
+    const targetAdmin = await prisma.admin.findUnique({
+      where: { id },
+      select: { id: true, businessId: true },
+    });
+
+    if (!targetAdmin || targetAdmin.businessId !== selectedBusinessId) {
+      return NextResponse.json({ error: 'Admin not found for the selected business' }, { status: 404 });
     }
 
     const updated = await prisma.admin.update({
       where: { id },
       data: {
-        ...(role ? { role } : {}),
-        businessId: businessId === undefined ? undefined : businessId || null,
+        role: normalizedRole as 'BUSINESS_OWNER' | 'BUSINESS_STAFF',
       },
       select: {
         id: true,
@@ -80,6 +95,23 @@ export async function DELETE(
   }
 
   try {
+    const authBusinessId = typeof auth.businessId === 'string' && auth.businessId.trim()
+      ? auth.businessId.trim()
+      : null;
+    const selectedBusinessId = await getSelectedBusinessIdFromRequest(req, authBusinessId, auth as any);
+    if (!selectedBusinessId) {
+      return NextResponse.json({ error: 'Select a business first' }, { status: 400 });
+    }
+
+    const targetAdmin = await prisma.admin.findUnique({
+      where: { id },
+      select: { id: true, businessId: true },
+    });
+
+    if (!targetAdmin || targetAdmin.businessId !== selectedBusinessId) {
+      return NextResponse.json({ error: 'Admin not found for the selected business' }, { status: 404 });
+    }
+
     await prisma.admin.delete({
       where: { id }
     });

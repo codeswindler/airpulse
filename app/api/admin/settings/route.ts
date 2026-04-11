@@ -16,10 +16,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Permission denied. Superadmin required.' }, { status: 403 });
     }
 
-    const settings = await prisma.systemSetting.findMany();
-    const config: Record<string, string> = {};
-    settings.forEach(s => { config[s.key] = s.value; });
-    return NextResponse.json(config);
+    const appUrl = process.env.APP_URL?.trim() || new URL(req.url).origin;
+
+    return NextResponse.json({
+      sharedCallbacks: {
+        mpesaCallbackUrl: `${appUrl}/api/mpesa/callback`,
+        tupayWebhookUrl: `${appUrl}/api/webhook`,
+        ussdEndpointUrl: `${appUrl}/api/ussd`,
+      },
+      note: 'These callbacks are shared across every business account.',
+    });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
   }

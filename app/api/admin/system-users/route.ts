@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
+import { getSelectedBusinessIdFromRequest } from '@/lib/adminContext';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
@@ -21,12 +22,22 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const businessFilter = auth.role === 'SUPERADMIN'
-      ? {}
-      : { businessId: auth.businessId ?? null };
+    const authBusinessId = typeof auth.businessId === 'string' && auth.businessId.trim()
+      ? auth.businessId.trim()
+      : null;
+    const selectedBusinessId = auth.role === 'SUPERADMIN'
+      ? await getSelectedBusinessIdFromRequest(req, authBusinessId, auth as any)
+      : authBusinessId;
+
+    if (!selectedBusinessId) {
+      return NextResponse.json({
+        admins: [],
+        needsBusinessSelection: true,
+      });
+    }
 
     const admins = await prisma.admin.findMany({
-      where: businessFilter,
+      where: { businessId: selectedBusinessId },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -44,7 +55,7 @@ export async function GET(req: NextRequest) {
         },
       }
     });
-    return NextResponse.json({ admins });
+    return NextResponse.json({ admins, selectedBusinessId });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to fetch admins' }, { status: 500 });
   }
@@ -58,6 +69,12 @@ export async function POST(req: NextRequest) {
 
   try {
     const { name, email, password, role, businessId } = await req.json();
+    const authBusinessId = typeof auth.businessId === 'string' && auth.businessId.trim()
+      ? auth.businessId.trim()
+      : null;
+    const selectedBusinessId = typeof businessId === 'string' && businessId.trim()
+      ? businessId.trim()
+      : await getSelectedBusinessIdFromRequest(req, authBusinessId, auth as any);
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -68,21 +85,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Admin with this email already exists' }, { status: 400 });
     }
 
-    if (businessId) {
-      const business = await prisma.business.findUnique({ where: { id: businessId } });
-      if (!business) {
-        return NextResponse.json({ error: 'Selected business does not exist' }, { status: 400 });
-      }
+    if (!selectedBusinessId) {
+      return NextResponse.json({ error: 'Select a business first' }, { status: 400 });
+    }
+
+    const business = await prisma.business.findUnique({ where: { id: selectedBusinessId } });
+    if (!business) {
+      return NextResponse.json({ error: 'Selected business does not exist' }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const normalizedRole = typeof role === 'string' ? role.toUpperCase() : '';
+    const assignedRole = normalizedRole === 'BUSINESS_OWNER' ? 'BUSINESS_OWNER' : 'BUSINESS_STAFF';
     const newAdmin = await prisma.admin.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: role || (businessId ? 'BUSINESS_STAFF' : 'MODERATOR'),
-        businessId: businessId || null,
+        role: assignedRole,
+        businessId: selectedBusinessId,
       },
       select: {
         id: true,
