@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Building2, Loader2, Shield, ShieldAlert, Trash2, User, X } from 'lucide-react';
 
 type AdminRecord = {
   id: string;
   email: string;
   name: string | null;
+  phoneNumber: string | null;
   role: string;
   updatedAt: string;
   businessId: string | null;
@@ -44,6 +45,7 @@ export default function SystemUsersPage() {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    phoneNumber: '',
     password: '',
     role: 'BUSINESS_STAFF' as 'BUSINESS_OWNER' | 'BUSINESS_STAFF',
   });
@@ -109,7 +111,7 @@ export default function SystemUsersPage() {
     alert(data?.error || 'Failed to delete account');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     if (!selectedBusinessId) {
@@ -123,10 +125,10 @@ export default function SystemUsersPage() {
       const res = await fetch('/api/admin/system-users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          businessId: selectedBusinessId,
-        }),
+          body: JSON.stringify({
+            ...formData,
+            businessId: selectedBusinessId,
+          }),
       });
 
       if (res.ok) {
@@ -136,6 +138,7 @@ export default function SystemUsersPage() {
         setFormData({
           name: '',
           email: '',
+          phoneNumber: '',
           password: '',
           role: 'BUSINESS_STAFF',
         });
@@ -232,6 +235,9 @@ export default function SystemUsersPage() {
                     <div>
                       <div style={{ fontWeight: 600 }}>{admin.name || 'Admin'}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{admin.email}</div>
+                      {admin.phoneNumber ? (
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{admin.phoneNumber}</div>
+                      ) : null}
                     </div>
                   </div>
                 </td>
@@ -352,6 +358,16 @@ export default function SystemUsersPage() {
                   placeholder="admin@example.com"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Phone Number</label>
+                <input
+                  type="tel"
+                  placeholder="2547..."
+                  value={formData.phoneNumber}
+                  onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
                   style={{ width: '100%', padding: '10px', borderRadius: '8px', backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
                 />
               </div>

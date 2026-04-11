@@ -8,21 +8,24 @@ import { ChevronDown, LogOut, PencilLine, Shield, X, Lock } from 'lucide-react';
 type Props = {
   adminName: string | null;
   adminEmail: string | null;
+  adminPhoneNumber?: string | null;
   adminRole: string | null;
-  onProfileUpdated?: (updated: { name?: string | null; email?: string | null; role?: string | null }) => void;
+  onProfileUpdated?: (updated: { name?: string | null; email?: string | null; phoneNumber?: string | null; role?: string | null }) => void;
 };
 
 type ProfileForm = {
   name: string;
   email: string;
+  phoneNumber: string;
   currentPassword: string;
   password: string;
   confirmPassword: string;
 };
 
-const defaultForm = (adminName: string | null, adminEmail: string | null): ProfileForm => ({
+const defaultForm = (adminName: string | null, adminEmail: string | null, adminPhoneNumber?: string | null): ProfileForm => ({
   name: adminName || '',
   email: adminEmail || '',
+  phoneNumber: adminPhoneNumber || '',
   currentPassword: '',
   password: '',
   confirmPassword: '',
@@ -31,6 +34,7 @@ const defaultForm = (adminName: string | null, adminEmail: string | null): Profi
 export default function ProfileDropdown({
   adminName,
   adminEmail,
+  adminPhoneNumber,
   adminRole,
   onProfileUpdated,
 }: Props) {
@@ -39,7 +43,7 @@ export default function ProfileDropdown({
   const [editOpen, setEditOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState<ProfileForm>(defaultForm(adminName, adminEmail));
+  const [form, setForm] = useState<ProfileForm>(defaultForm(adminName, adminEmail, adminPhoneNumber));
 
   const displayName = adminName?.trim() || adminEmail?.trim() || 'Account';
   const displayEmail = adminEmail?.trim() || 'No email set';
@@ -54,14 +58,14 @@ export default function ProfileDropdown({
     }
 
     setError(null);
-    setForm(defaultForm(adminName, adminEmail));
-  }, [adminEmail, adminName, editOpen]);
+    setForm(defaultForm(adminName, adminEmail, adminPhoneNumber));
+  }, [adminEmail, adminName, adminPhoneNumber, editOpen]);
 
   const closeMenu = () => setMenuOpen(false);
   const closeEditor = () => {
     setEditOpen(false);
     setError(null);
-    setForm(defaultForm(adminName, adminEmail));
+    setForm(defaultForm(adminName, adminEmail, adminPhoneNumber));
   };
 
   const handleLogout = async () => {
@@ -109,6 +113,7 @@ export default function ProfileDropdown({
         body: JSON.stringify({
           name: nextName,
           email: nextEmail,
+          phoneNumber: form.phoneNumber.trim() || undefined,
           currentPassword: form.currentPassword || undefined,
           password: form.password || undefined,
         }),
@@ -419,6 +424,28 @@ export default function ProfileDropdown({
                     outline: 'none',
                   }}
                   placeholder="name@company.com"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gap: 6 }}>
+                <label htmlFor="profile-phone" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.7 }}>
+                  Phone number
+                </label>
+                <input
+                  id="profile-phone"
+                  type="tel"
+                  value={form.phoneNumber}
+                  onChange={(event) => setForm((value) => ({ ...value, phoneNumber: event.target.value }))}
+                  style={{
+                    width: '100%',
+                    borderRadius: 12,
+                    border: '1px solid var(--border-color)',
+                    background: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    padding: '12px 14px',
+                    outline: 'none',
+                  }}
+                  placeholder="2547..."
                 />
               </div>
 

@@ -103,6 +103,7 @@ function serializeBusiness(business: any) {
     description: business.description,
     ownerName: owner?.name ?? business.ownerName ?? null,
     ownerEmail: owner?.email ?? business.ownerEmail ?? null,
+    ownerPhone: owner?.phoneNumber ?? business.ownerPhone ?? null,
     createdAt: business.createdAt,
     updatedAt: business.updatedAt,
     subscriptionEndsAt,
@@ -161,12 +162,13 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         include: {
           admins: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              role: true,
-            },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            phoneNumber: true,
+          },
             orderBy: { createdAt: 'asc' },
           },
           _count: {
@@ -193,6 +195,7 @@ export async function GET(req: NextRequest) {
             name: true,
             email: true,
             role: true,
+            phoneNumber: true,
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -229,6 +232,7 @@ export async function POST(req: NextRequest) {
     const status: 'ACTIVE' | 'SUSPENDED' = cleanString(body.status).toUpperCase() === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
     const ownerName = cleanNullableString(body.ownerName);
     const ownerEmail = cleanNullableString(body.ownerEmail);
+    const ownerPhone = cleanNullableString(body.ownerPhone);
     const ownerPassword = cleanNullableString(body.ownerPassword);
     const ownerRole: 'BUSINESS_OWNER' | 'BUSINESS_STAFF' = cleanString(body.ownerRole).toUpperCase() === 'BUSINESS_STAFF'
       ? 'BUSINESS_STAFF'
@@ -270,6 +274,7 @@ export async function POST(req: NextRequest) {
           status,
           ownerName,
           ownerEmail,
+          ownerPhone,
           description,
           subscriptionEndsAt: parseNullableDate(body.subscriptionEndsAt) ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           mpesaConsumerKey: cleanNullableString(body.mpesaConsumerKey),
@@ -295,6 +300,7 @@ export async function POST(req: NextRequest) {
               email: ownerEmail,
               password: hashedPassword,
               name: ownerName || name,
+              phoneNumber: ownerPhone,
               role: ownerRole,
             },
           },
@@ -306,6 +312,7 @@ export async function POST(req: NextRequest) {
               name: true,
               email: true,
               role: true,
+              phoneNumber: true,
             },
           },
           _count: {

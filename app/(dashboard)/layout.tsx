@@ -29,6 +29,7 @@ export default function DashboardLayout({
   const [adminRole, setAdminRole] = useState<string | null>(null);
   const [adminName, setAdminName] = useState<string | null>(null);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [adminPhoneNumber, setAdminPhoneNumber] = useState<string | null>(null);
   const [adminBusinessId, setAdminBusinessId] = useState<string | null>(null);
   const [adminBusinessName, setAdminBusinessName] = useState<string | null>(null);
   const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
@@ -73,6 +74,7 @@ export default function DashboardLayout({
           setAdminRole(meData.role || null);
           setAdminName(meData.name || null);
           setAdminEmail(meData.email || null);
+          setAdminPhoneNumber(meData.phoneNumber || null);
           setAdminBusinessId(resolvedBusinessId);
           setAdminBusinessName(
             nextBusinesses.find((business: BusinessOption) => business.id === resolvedBusinessId)?.name
@@ -118,13 +120,17 @@ export default function DashboardLayout({
     );
   };
 
-  const handleProfileUpdated = (updated: { name?: string | null; email?: string | null; role?: string | null }) => {
+  const handleProfileUpdated = (updated: { name?: string | null; email?: string | null; phoneNumber?: string | null; role?: string | null }) => {
     if (typeof updated.name !== 'undefined') {
       setAdminName(updated.name || null);
     }
 
     if (typeof updated.email !== 'undefined') {
       setAdminEmail(updated.email || null);
+    }
+
+    if (typeof updated.phoneNumber !== 'undefined') {
+      setAdminPhoneNumber(updated.phoneNumber || null);
     }
 
     if (typeof updated.role !== 'undefined') {
@@ -208,7 +214,7 @@ export default function DashboardLayout({
               <span>Users (Access)</span>
             </li>
           </Link>
-          {adminRole === 'SUPERADMIN' ? (
+          {adminRole === 'SUPERADMIN' && !adminBusinessId ? (
             <Link href="/settings" style={{ textDecoration: 'none' }}>
               <li className="sidebar-item">
                 <span>Shared Callbacks</span>
@@ -246,6 +252,7 @@ export default function DashboardLayout({
             <ProfileDropdown
               adminName={adminName}
               adminEmail={adminEmail}
+              adminPhoneNumber={adminPhoneNumber}
               adminRole={adminRole}
               onProfileUpdated={handleProfileUpdated}
             />

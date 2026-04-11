@@ -25,7 +25,7 @@ type SharedSettings = {
     mpesaCallbackUrl: string;
     tupayWebhookUrl: string;
     ussdEndpointUrl: string;
-  };
+  } | null;
   platformSms?: {
     sms_provider: string;
     sms_threshold: string;
@@ -201,6 +201,7 @@ export default function PlatformSettingsPanel() {
   }, []);
 
   const isSuperAdmin = role === 'SUPERADMIN';
+  const filteredMode = Boolean(selectedBusinessName);
   const smsProvider = form.sms_provider === 'onfon' ? 'onfon' : 'advanta';
   const smsProviderLabel = smsProvider === 'onfon' ? 'Onfon' : 'Advanta';
   const callbackRows = [
@@ -230,6 +231,12 @@ export default function PlatformSettingsPanel() {
       console.error('Copy failed', error);
     }
   };
+
+  useEffect(() => {
+    if (filteredMode && activeTab === 'CALLBACKS') {
+      setActiveTab('SMS');
+    }
+  }, [activeTab, filteredMode]);
 
   const updateForm = <K extends keyof SettingsForm>(key: K, value: SettingsForm[K]) => {
     setForm((current) => ({
@@ -299,8 +306,12 @@ export default function PlatformSettingsPanel() {
     <div className="dashboard-scroll">
       <div className="dashboard-header">
         <div>
-          <h1>Shared Callbacks</h1>
-          <p>Shared endpoints, platform SMS, and platform email for all tenants.</p>
+          <h1>{filteredMode ? 'Platform Settings' : 'Shared Callbacks'}</h1>
+          <p>
+            {filteredMode
+              ? 'Platform SMS and email settings for admin-wide alerts.'
+              : 'Shared endpoints, platform SMS, and platform email for all tenants.'}
+          </p>
         </div>
         <div className="action-buttons" style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={topBadgeStyle}>
@@ -360,30 +371,49 @@ export default function PlatformSettingsPanel() {
         These URLs stay the same when you switch business filters. Tenant credentials live under each business account.
       </div>
 
-      <div className="settings-tabs" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-color)', marginTop: 24, marginBottom: 32, overflowX: 'auto' }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('CALLBACKS')}
+      {filteredMode ? (
+        <div
+          className="card"
           style={{
-            padding: '12px 16px',
-            cursor: 'pointer',
-            color: activeTab === 'CALLBACKS' ? 'var(--accent-color)' : 'var(--text-secondary)',
-            borderBottom: activeTab === 'CALLBACKS' ? '2px solid var(--accent-color)' : '2px solid transparent',
-            fontWeight: 600,
-            fontSize: 14,
-            transition: '0.2s',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            background: 'transparent',
-            borderLeft: 'none',
-            borderRight: 'none',
-            borderTop: 'none',
+            marginTop: 20,
+            padding: '14px 16px',
+            borderColor: 'rgba(59, 130, 246, 0.2)',
+            background: 'rgba(59, 130, 246, 0.06)',
+            color: 'var(--text-primary)',
+            fontSize: 13,
+            lineHeight: 1.6,
           }}
         >
-          <Link2 size={14} />
-          Shared callbacks
-        </button>
+          Shared callbacks are available only in Platform Admin mode. Clear the business filter from the top bar to view them.
+        </div>
+      ) : null}
+
+      <div className="settings-tabs" style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border-color)', marginTop: 24, marginBottom: 32, overflowX: 'auto' }}>
+        {!filteredMode ? (
+          <button
+            type="button"
+            onClick={() => setActiveTab('CALLBACKS')}
+            style={{
+              padding: '12px 16px',
+              cursor: 'pointer',
+              color: activeTab === 'CALLBACKS' ? 'var(--accent-color)' : 'var(--text-secondary)',
+              borderBottom: activeTab === 'CALLBACKS' ? '2px solid var(--accent-color)' : '2px solid transparent',
+              fontWeight: 600,
+              fontSize: 14,
+              transition: '0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'transparent',
+              borderLeft: 'none',
+              borderRight: 'none',
+              borderTop: 'none',
+            }}
+          >
+            <Link2 size={14} />
+            Shared callbacks
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => setActiveTab('SMS')}
@@ -455,7 +485,7 @@ export default function PlatformSettingsPanel() {
         </button>
       </div>
 
-      {activeTab === 'CALLBACKS' ? (
+      {!filteredMode && activeTab === 'CALLBACKS' ? (
         <div className="settings-grid" style={{ display: 'grid', gap: 24 }}>
           <div className="card" style={{ display: 'grid', gap: 16 }}>
             {callbackRows.map((row) => (
@@ -797,15 +827,6 @@ export default function PlatformSettingsPanel() {
             </div>
           </div>
 
-          <div className="card" style={{ display: 'grid', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <ShieldCheck size={16} color="var(--accent-color)" />
-              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Email alerts</div>
-            </div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.6 }}>
-              Borrow the same SMTP pattern we used in LeaseMaster: a host, port, user, password, from address, from name, and an enable switch.
-            </div>
-          </div>
         </div>
       ) : null}
 

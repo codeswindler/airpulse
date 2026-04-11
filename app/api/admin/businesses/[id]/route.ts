@@ -90,12 +90,18 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const name = cleanString(body.name) || business.name;
-    const rawSlug = cleanString(body.slug);
+    const hasField = (key: string) => Object.prototype.hasOwnProperty.call(body, key);
+    const name = hasField('name') ? (cleanString(body.name) || business.name) : business.name;
+    const rawSlug = hasField('slug') ? cleanString(body.slug) : '';
     const slug = rawSlug ? normalizeSlug(rawSlug) : business.slug;
-    const serviceCode = cleanNullableString(body.serviceCode);
-    const description = cleanNullableString(body.description);
-    const status: 'ACTIVE' | 'SUSPENDED' = cleanString(body.status).toUpperCase() === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
+    const serviceCode = hasField('serviceCode') ? cleanNullableString(body.serviceCode) : business.serviceCode;
+    const description = hasField('description') ? cleanNullableString(body.description) : business.description;
+    const status: 'ACTIVE' | 'SUSPENDED' = hasField('status')
+      ? (cleanString(body.status).toUpperCase() === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE')
+      : business.status;
+    const ownerName = hasField('ownerName') ? cleanNullableString(body.ownerName) : business.ownerName;
+    const ownerEmail = hasField('ownerEmail') ? cleanNullableString(body.ownerEmail) : business.ownerEmail;
+    const ownerPhone = hasField('ownerPhone') ? cleanNullableString(body.ownerPhone) : business.ownerPhone;
     const absoluteSubscriptionEndsAt = parseNullableDate(body.subscriptionEndsAt);
     const subscriptionDeltaDays = parseOptionalNumber(body.subscriptionDeltaDays);
     const subscriptionDeltaHours = parseOptionalNumber(body.subscriptionDeltaHours);
@@ -133,28 +139,29 @@ export async function PATCH(
         slug,
         serviceCode,
         status,
-        ownerName: cleanNullableString(body.ownerName),
-        ownerEmail: cleanNullableString(body.ownerEmail),
+        ownerName,
+        ownerEmail,
+        ownerPhone,
         description,
         subscriptionEndsAt: nextSubscriptionEndsAt,
-        mpesaConsumerKey: cleanNullableString(body.mpesaConsumerKey),
-        mpesaConsumerSecret: cleanNullableString(body.mpesaConsumerSecret),
-        mpesaPasskey: cleanNullableString(body.mpesaPasskey),
-        mpesaShortcode: cleanNullableString(body.mpesaShortcode),
-        mpesaBusinessShortcode: cleanNullableString(body.mpesaBusinessShortcode),
-        mpesaPartyB: cleanNullableString(body.mpesaPartyB),
-        mpesaEnvironment: cleanString(body.mpesaEnvironment) || 'production',
-        mpesaTransactionType: cleanString(body.mpesaTransactionType) || 'CustomerBuyGoodsOnline',
-        mpesaCallbackUrl: cleanNullableString(body.mpesaCallbackUrl),
-        tupayUuid: cleanNullableString(body.tupayUuid),
-        tupayApiKey: cleanNullableString(body.tupayApiKey),
-        tupaySecret: cleanNullableString(body.tupaySecret),
-        smsProvider: cleanNullableString(body.smsProvider),
-        smsPartnerId: cleanNullableString(body.smsPartnerId),
-        smsApiKey: cleanNullableString(body.smsApiKey),
-        smsSenderId: cleanNullableString(body.smsSenderId),
-        smsAccessKey: cleanNullableString(body.smsAccessKey),
-        smsClientId: cleanNullableString(body.smsClientId),
+        mpesaConsumerKey: hasField('mpesaConsumerKey') ? cleanNullableString(body.mpesaConsumerKey) : business.mpesaConsumerKey,
+        mpesaConsumerSecret: hasField('mpesaConsumerSecret') ? cleanNullableString(body.mpesaConsumerSecret) : business.mpesaConsumerSecret,
+        mpesaPasskey: hasField('mpesaPasskey') ? cleanNullableString(body.mpesaPasskey) : business.mpesaPasskey,
+        mpesaShortcode: hasField('mpesaShortcode') ? cleanNullableString(body.mpesaShortcode) : business.mpesaShortcode,
+        mpesaBusinessShortcode: hasField('mpesaBusinessShortcode') ? cleanNullableString(body.mpesaBusinessShortcode) : business.mpesaBusinessShortcode,
+        mpesaPartyB: hasField('mpesaPartyB') ? cleanNullableString(body.mpesaPartyB) : business.mpesaPartyB,
+        mpesaEnvironment: hasField('mpesaEnvironment') ? (cleanString(body.mpesaEnvironment) || 'production') : business.mpesaEnvironment,
+        mpesaTransactionType: hasField('mpesaTransactionType') ? (cleanString(body.mpesaTransactionType) || 'CustomerBuyGoodsOnline') : business.mpesaTransactionType,
+        mpesaCallbackUrl: hasField('mpesaCallbackUrl') ? cleanNullableString(body.mpesaCallbackUrl) : business.mpesaCallbackUrl,
+        tupayUuid: hasField('tupayUuid') ? cleanNullableString(body.tupayUuid) : business.tupayUuid,
+        tupayApiKey: hasField('tupayApiKey') ? cleanNullableString(body.tupayApiKey) : business.tupayApiKey,
+        tupaySecret: hasField('tupaySecret') ? cleanNullableString(body.tupaySecret) : business.tupaySecret,
+        smsProvider: hasField('smsProvider') ? cleanNullableString(body.smsProvider) : business.smsProvider,
+        smsPartnerId: hasField('smsPartnerId') ? cleanNullableString(body.smsPartnerId) : business.smsPartnerId,
+        smsApiKey: hasField('smsApiKey') ? cleanNullableString(body.smsApiKey) : business.smsApiKey,
+        smsSenderId: hasField('smsSenderId') ? cleanNullableString(body.smsSenderId) : business.smsSenderId,
+        smsAccessKey: hasField('smsAccessKey') ? cleanNullableString(body.smsAccessKey) : business.smsAccessKey,
+        smsClientId: hasField('smsClientId') ? cleanNullableString(body.smsClientId) : business.smsClientId,
       },
       include: {
         admins: {
@@ -163,6 +170,7 @@ export async function PATCH(
             name: true,
             email: true,
             role: true,
+            phoneNumber: true,
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -171,6 +179,18 @@ export async function PATCH(
         },
       },
     });
+
+    if (hasField('ownerPhone')) {
+      await prisma.admin.updateMany({
+        where: {
+          businessId: id,
+          role: 'BUSINESS_OWNER',
+        },
+        data: {
+          phoneNumber: ownerPhone,
+        },
+      });
+    }
 
     clearAirPulseTokenCache(id);
     clearTupayBalanceCache(id);

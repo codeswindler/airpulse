@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Building2, CalendarClock, KeyRound, Loader2, Plus, Power, Trash2, Users, X } from 'lucide-react';
 import StatusPill from '@/components/StatusPill';
 
@@ -13,6 +13,7 @@ type BusinessRecord = {
   description: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
+  ownerPhone: string | null;
   credentialFill: {
     mpesa: boolean;
     tupay: boolean;
@@ -39,6 +40,7 @@ type FormState = {
   description: string;
   ownerName: string;
   ownerEmail: string;
+  ownerPhone: string;
   ownerPassword: string;
   subscriptionEndsAt: string;
   mpesaConsumerKey: string;
@@ -69,6 +71,7 @@ const EMPTY_FORM: FormState = {
   description: '',
   ownerName: '',
   ownerEmail: '',
+  ownerPhone: '',
   ownerPassword: '',
   subscriptionEndsAt: '',
   mpesaConsumerKey: '',
@@ -94,7 +97,7 @@ const EMPTY_FORM: FormState = {
 const FIELD_GROUPS: Array<{ title: string; fields: Array<keyof FormState> }> = [
   {
     title: 'Business Profile',
-    fields: ['name', 'slug', 'serviceCode', 'status', 'description', 'ownerName', 'ownerEmail', 'ownerPassword', 'subscriptionEndsAt'],
+    fields: ['name', 'slug', 'serviceCode', 'status', 'description', 'ownerName', 'ownerEmail', 'ownerPhone', 'ownerPassword', 'subscriptionEndsAt'],
   },
   {
     title: 'M-Pesa',
@@ -237,6 +240,7 @@ export default function BusinessesPage() {
       description: business.description || '',
       ownerName: business.ownerName || '',
       ownerEmail: business.ownerEmail || '',
+      ownerPhone: business.ownerPhone || '',
       subscriptionEndsAt: toDateTimeLocalValue(business.subscriptionEndsAt),
       mpesaConsumerKey: business.credentials.mpesaConsumerKey || '',
       mpesaConsumerSecret: business.credentials.mpesaConsumerSecret || '',
@@ -320,7 +324,7 @@ export default function BusinessesPage() {
     setSubscriptionHours('');
   };
 
-  const handleSubscriptionAdjust = async (event: React.FormEvent) => {
+  const handleSubscriptionAdjust = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!subscriptionTarget) {
@@ -382,7 +386,7 @@ export default function BusinessesPage() {
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
 
@@ -648,6 +652,7 @@ export default function BusinessesPage() {
                         description: 'Description',
                         ownerName: 'Owner Name',
                         ownerEmail: 'Owner Email',
+                        ownerPhone: 'Owner Phone',
                         ownerPassword: 'Owner Password',
                         subscriptionEndsAt: 'Subscription Ends At',
                         mpesaConsumerKey: 'Consumer Key',
@@ -673,12 +678,13 @@ export default function BusinessesPage() {
                       const typeMap: Partial<Record<keyof FormState, string>> = {
                         ownerPassword: 'password',
                         ownerEmail: 'email',
+                        ownerPhone: 'tel',
                         mpesaCallbackUrl: 'url',
                         serviceCode: 'text',
                         subscriptionEndsAt: 'datetime-local',
                       };
 
-                      if (field === 'name' || field === 'slug' || field === 'serviceCode' || field === 'ownerName' || field === 'ownerEmail' || field === 'ownerPassword' || field === 'subscriptionEndsAt' || field === 'mpesaConsumerKey' || field === 'mpesaConsumerSecret' || field === 'mpesaPasskey' || field === 'mpesaShortcode' || field === 'mpesaBusinessShortcode' || field === 'mpesaPartyB' || field === 'mpesaCallbackUrl' || field === 'tupayUuid' || field === 'tupayApiKey' || field === 'tupaySecret' || field === 'smsProvider' || field === 'smsPartnerId' || field === 'smsApiKey' || field === 'smsSenderId' || field === 'smsAccessKey' || field === 'smsClientId') {
+                      if (field === 'name' || field === 'slug' || field === 'serviceCode' || field === 'ownerName' || field === 'ownerEmail' || field === 'ownerPhone' || field === 'ownerPassword' || field === 'subscriptionEndsAt' || field === 'mpesaConsumerKey' || field === 'mpesaConsumerSecret' || field === 'mpesaPasskey' || field === 'mpesaShortcode' || field === 'mpesaBusinessShortcode' || field === 'mpesaPartyB' || field === 'mpesaCallbackUrl' || field === 'tupayUuid' || field === 'tupayApiKey' || field === 'tupaySecret' || field === 'smsProvider' || field === 'smsPartnerId' || field === 'smsApiKey' || field === 'smsSenderId' || field === 'smsAccessKey' || field === 'smsClientId') {
                         return (
                           <label key={field} style={{ display: 'grid', gap: 6 }}>
                             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{labelMap[field]}</span>

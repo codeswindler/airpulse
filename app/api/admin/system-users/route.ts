@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
         role: true,
         updatedAt: true,
         businessId: true,
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { name, email, password, role, businessId } = await req.json();
+    const { name, email, password, role, businessId, phoneNumber } = await req.json();
     const authBusinessId = typeof auth.businessId === 'string' && auth.businessId.trim()
       ? auth.businessId.trim()
       : null;
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         email,
+        phoneNumber: typeof phoneNumber === 'string' && phoneNumber.trim() ? phoneNumber.trim() : null,
         password: hashedPassword,
         role: assignedRole,
         businessId: selectedBusinessId,
@@ -109,6 +111,7 @@ export async function POST(req: NextRequest) {
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
         role: true,
         updatedAt: true,
         businessId: true,

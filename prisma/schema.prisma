@@ -85,6 +85,7 @@ model Business {
   subscriptionEndsAt     DateTime?
   ownerName              String?
   ownerEmail             String?
+  ownerPhone             String?
   description            String?
   mpesaConsumerKey       String?
   mpesaConsumerSecret    String?
@@ -111,6 +112,7 @@ model Business {
   ussdSessions           UssdSession[]
   savedPhones            SavedPhone[]
   transactions           Transaction[]
+  notificationLogs       NotificationLog[]
 }
 
 model Admin {
@@ -118,11 +120,46 @@ model Admin {
   email      String    @unique
   password   String    // Hashed
   name       String?
+  phoneNumber String?
   role       AdminRole @default(MODERATOR)
   businessId String?
   business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  loginOtps  LoginOtp[]
+}
+
+model LoginOtp {
+  id          String   @id @default(uuid())
+  adminId     String
+  codeHash    String
+  expiresAt   DateTime
+  attempts    Int      @default(0)
+  consumedAt  DateTime?
+  sentToEmail String?
+  sentToPhone String?
+  createdAt   DateTime @default(now())
+  admin       Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId, expiresAt])
+}
+
+model NotificationLog {
+  id         String   @id @default(uuid())
+  businessId String?
+  kind       String
+  channel    String
+  recipient  String
+  dedupeKey  String   @unique
+  subject    String?
+  message    String   @db.Text
+  status     String
+  metadata   String?  @db.Text
+  createdAt  DateTime @default(now())
+  business   Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([kind])
 }
 
 model SystemSetting {

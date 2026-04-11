@@ -1,30 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { SignJWT, jwtVerify } from 'jose';
+import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
 import { getSelectedBusinessIdFromRequest } from '@/lib/adminContext';
+import { issueAdminToken } from '@/lib/adminTokens';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
-
-async function issueAdminToken(admin: {
-  id: string;
-  email: string;
-  role: string;
-  name: string | null;
-  businessId: string | null;
-}) {
-  return new SignJWT({
-    id: admin.id,
-    email: admin.email,
-    role: admin.role,
-    name: admin.name,
-    businessId: admin.businessId,
-  })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('24h')
-    .sign(JWT_SECRET);
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -78,6 +59,7 @@ export async function GET(req: NextRequest) {
       id: admin.id,
       email: admin.email,
       name: admin.name,
+      phoneNumber: admin.phoneNumber,
       role: admin.role,
       businessId: admin.businessId,
       business: admin.business,
@@ -115,11 +97,13 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json();
     const nextName = typeof body.name === 'string' ? body.name.trim() : '';
     const nextEmail = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const nextPhoneNumber = typeof body.phoneNumber === 'string' ? body.phoneNumber.trim() : '';
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : '';
     const nextPassword = typeof body.password === 'string' ? body.password : '';
 
     const updatedName = nextName || admin.name || '';
     const updatedEmail = nextEmail || admin.email;
+    const updatedPhoneNumber = nextPhoneNumber || admin.phoneNumber || null;
 
     if (!updatedName) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -151,6 +135,7 @@ export async function PATCH(req: NextRequest) {
       data: {
         name: updatedName,
         email: updatedEmail,
+        phoneNumber: updatedPhoneNumber,
         ...(passwordHash ? { password: passwordHash } : {}),
       },
       include: {
@@ -170,6 +155,7 @@ export async function PATCH(req: NextRequest) {
       role: updated.role,
       name: updated.name,
       businessId: updated.businessId,
+      phoneNumber: updated.phoneNumber,
     });
 
     return NextResponse.json({
@@ -179,6 +165,7 @@ export async function PATCH(req: NextRequest) {
         id: updated.id,
         email: updated.email,
         name: updated.name,
+        phoneNumber: updated.phoneNumber,
         role: updated.role,
         businessId: updated.businessId,
         business: updated.business,

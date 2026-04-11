@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
-import { SignJWT } from 'jose';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
+import { sendLoginOtp } from '@/lib/authOtp';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,28 +30,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
     }
 
-    // Generate JWT
-    const token = await new SignJWT({ 
-      id: admin.id, 
-      email: admin.email, 
-      role: admin.role,
+    const otpChallenge = await sendLoginOtp({
+      id: admin.id,
+      email: admin.email,
       name: admin.name,
+      phoneNumber: admin.phoneNumber ?? null,
+      role: admin.role,
       businessId: admin.businessId,
-    })
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('24h')
-      .sign(JWT_SECRET);
+      business: admin.business,
+    });
 
     return NextResponse.json({ 
       success: true, 
-      token,
+      otpRequired: true,
+      challengeToken: otpChallenge.challengeToken,
+      otpDelivery: otpChallenge.delivery,
+      otpExpiresAt: otpChallenge.expiresAt,
       user: {
         id: admin.id,
         email: admin.email,
         name: admin.name,
         role: admin.role,
         businessId: admin.businessId,
+        phoneNumber: admin.phoneNumber ?? null,
         business: admin.business,
       }
     });

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import { clearSmsBalanceCache } from '@/lib/smsClient';
 import { clearAirPulseTokenCache, clearTupayBalanceCache } from '@/lib/airpulseClient';
+import { getSelectedBusinessIdFromRequest } from '@/lib/adminContext';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
@@ -22,9 +23,14 @@ export async function GET(req: NextRequest) {
     }
 
     const appUrl = process.env.APP_URL?.trim() || new URL(req.url).origin;
+    const selectedBusinessId = await getSelectedBusinessIdFromRequest(req, null, {
+      role: String(payload.role || ''),
+      businessId: null,
+    });
+    const filteredMode = Boolean(selectedBusinessId);
 
     return NextResponse.json({
-      sharedCallbacks: {
+      sharedCallbacks: filteredMode ? null : {
         mpesaCallbackUrl: `${appUrl}/api/mpesa/callback`,
         tupayWebhookUrl: `${appUrl}/api/webhook`,
         ussdEndpointUrl: `${appUrl}/api/ussd`,
@@ -50,7 +56,10 @@ export async function GET(req: NextRequest) {
         smtp_from_name: getSettingValue(settings, 'smtp_from_name'),
         smtp_enabled: getSettingValue(settings, 'smtp_enabled', 'true'),
       },
-      note: 'These callbacks are shared across every business account.',
+      filteredMode,
+      note: filteredMode
+        ? 'Shared callbacks are hidden while a business is selected. Switch back to Platform Admin to view them.'
+        : 'These callbacks are shared across every business account.',
     });
   } catch (err) {
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });

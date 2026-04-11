@@ -60,6 +60,7 @@ export async function PATCH(
         id: true,
         email: true,
         name: true,
+        phoneNumber: true,
         role: true,
         updatedAt: true,
         businessId: true,
