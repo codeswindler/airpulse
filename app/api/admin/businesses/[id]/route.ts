@@ -49,6 +49,15 @@ function cleanNullableString(value: unknown) {
   return cleaned ? cleaned : null;
 }
 
+function parseNullableDate(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -99,6 +108,7 @@ export async function PATCH(
         ownerName: cleanNullableString(body.ownerName),
         ownerEmail: cleanNullableString(body.ownerEmail),
         description,
+        subscriptionEndsAt: parseNullableDate(body.subscriptionEndsAt) ?? business.subscriptionEndsAt,
         mpesaConsumerKey: cleanNullableString(body.mpesaConsumerKey),
         mpesaConsumerSecret: cleanNullableString(body.mpesaConsumerSecret),
         mpesaPasskey: cleanNullableString(body.mpesaPasskey),

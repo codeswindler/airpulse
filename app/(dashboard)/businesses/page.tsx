@@ -19,6 +19,12 @@ type BusinessRecord = {
     sms: boolean;
     total: number;
   };
+  subscriptionEndsAt: string | null;
+  subscription: {
+    endsAt: string | null;
+    isExpired: boolean;
+    daysRemaining: number | null;
+  };
   credentials: Record<string, string>;
   adminCount: number;
   createdAt: string;
@@ -136,6 +142,22 @@ function getStatusTone(status: BusinessRecord['status']) {
 
 function metricTone(ready: boolean) {
   return ready ? 'success' : 'danger';
+}
+
+function formatSubscription(subscription: BusinessRecord['subscription']) {
+  if (!subscription.endsAt) {
+    return 'No subscription set';
+  }
+
+  if (subscription.isExpired) {
+    return 'Expired';
+  }
+
+  if (subscription.daysRemaining !== null) {
+    return `${subscription.daysRemaining} day${subscription.daysRemaining === 1 ? '' : 's'} left`;
+  }
+
+  return new Date(subscription.endsAt).toLocaleDateString();
 }
 
 export default function BusinessesPage() {
@@ -328,6 +350,12 @@ export default function BusinessesPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span>M-Pesa Ready</span>
                 <StatusPill label={business.credentialFill.mpesa ? 'Ready' : 'Not ready'} tone={metricTone(business.credentialFill.mpesa)} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>Subscription</span>
+                <strong style={{ color: business.subscription.isExpired ? 'var(--danger-color)' : 'var(--success-color)' }}>
+                  {formatSubscription(business.subscription)}
+                </strong>
               </div>
             </div>
 

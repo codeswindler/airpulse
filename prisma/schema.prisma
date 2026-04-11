@@ -82,6 +82,7 @@ model Business {
   slug                   String         @unique
   serviceCode            String?        @unique
   status                 BusinessStatus @default(ACTIVE)
+  subscriptionEndsAt     DateTime?
   ownerName              String?
   ownerEmail             String?
   description            String?

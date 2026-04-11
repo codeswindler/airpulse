@@ -44,15 +44,8 @@ export async function resolveAdminContextFromCookies(defaultBusinessId: string |
         select: { id: true },
       })
     : null;
-  const fallbackBusiness = admin?.role === 'SUPERADMIN' && !cookieBusinessId && !admin?.businessId
-    ? await prisma.business.findFirst({
-        where: { status: 'ACTIVE' },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true },
-      })
-    : null;
   const selectedBusinessId = admin?.role === 'SUPERADMIN'
-    ? (cookieBusiness?.id || admin?.businessId || fallbackBusiness?.id || defaultBusinessId)
+    ? (cookieBusiness?.id || admin?.businessId || defaultBusinessId)
     : (admin?.businessId || defaultBusinessId);
 
   return {
@@ -90,11 +83,5 @@ export async function getSelectedBusinessIdFromRequest(
     return defaultBusinessId;
   }
 
-  const fallbackBusiness = await prisma.business.findFirst({
-    where: { status: 'ACTIVE' },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  });
-
-  return fallbackBusiness?.id ?? null;
+  return null;
 }

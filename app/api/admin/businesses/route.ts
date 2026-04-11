@@ -48,8 +48,38 @@ function cleanNullableString(value: unknown) {
   return cleaned ? cleaned : null;
 }
 
+function parseNullableDate(value: unknown) {
+  if (typeof value !== 'string' || !value.trim()) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildSubscriptionSummary(subscriptionEndsAt: Date | string | null | undefined) {
+  if (!subscriptionEndsAt) {
+    return {
+      endsAt: null,
+      isExpired: false,
+      daysRemaining: null as number | null,
+    };
+  }
+
+  const endsAt = new Date(subscriptionEndsAt);
+  const diffMs = endsAt.getTime() - Date.now();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  return {
+    endsAt: endsAt.toISOString(),
+    isExpired: diffMs <= 0,
+    daysRemaining,
+  };
+}
+
 function serializeBusiness(business: any) {
   const owner = business.admins?.find((admin: any) => admin.role === 'BUSINESS_OWNER') ?? business.admins?.[0] ?? null;
+  const subscriptionEndsAt = business.subscriptionEndsAt ?? new Date(business.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
   const configuredFields = [
     business.mpesaConsumerKey,
     business.mpesaConsumerSecret,
@@ -75,6 +105,8 @@ function serializeBusiness(business: any) {
     ownerEmail: owner?.email ?? business.ownerEmail ?? null,
     createdAt: business.createdAt,
     updatedAt: business.updatedAt,
+    subscriptionEndsAt,
+    subscription: buildSubscriptionSummary(subscriptionEndsAt),
     credentialFill: {
       mpesa: Boolean(
         business.mpesaConsumerKey &&
@@ -239,6 +271,7 @@ export async function POST(req: NextRequest) {
           ownerName,
           ownerEmail,
           description,
+          subscriptionEndsAt: parseNullableDate(body.subscriptionEndsAt) ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
           mpesaConsumerKey: cleanNullableString(body.mpesaConsumerKey),
           mpesaConsumerSecret: cleanNullableString(body.mpesaConsumerSecret),
           mpesaPasskey: cleanNullableString(body.mpesaPasskey),

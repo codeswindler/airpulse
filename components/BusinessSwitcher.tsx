@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { setCookie } from 'cookies-next';
+import { deleteCookie, setCookie } from 'cookies-next';
 import { Building2, Check, ChevronDown } from 'lucide-react';
 import { BUSINESS_CONTEXT_COOKIE } from '@/lib/businessContext';
 
@@ -32,9 +32,10 @@ export default function BusinessSwitcher({
     () => businesses.find((business) => business.id === currentBusinessId) ?? null,
     [businesses, currentBusinessId]
   );
+  const isSuperAdmin = role === 'SUPERADMIN';
 
   useEffect(() => {
-    if (!currentBusinessId || !businesses.length) {
+    if (!isSuperAdmin) {
       return;
     }
 
@@ -43,21 +44,23 @@ export default function BusinessSwitcher({
       .find((entry) => entry.startsWith(`${BUSINESS_CONTEXT_COOKIE}=`))
       ?.split('=')[1];
 
-    if (!currentCookie) {
+    if (currentBusinessId && !currentCookie) {
       setCookie(BUSINESS_CONTEXT_COOKIE, currentBusinessId, {
         path: '/',
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 30,
       });
+    } else if (!currentBusinessId && currentCookie) {
+      deleteCookie(BUSINESS_CONTEXT_COOKIE, { path: '/' });
     }
-  }, [businesses.length, currentBusinessId]);
+  }, [currentBusinessId, isSuperAdmin]);
 
-  if (!currentBusinessId && !selectedBusiness && !currentBusinessName) {
+  if (!currentBusinessId && !currentBusinessName && !isSuperAdmin) {
     return null;
   }
 
-  const label = selectedBusiness?.name || currentBusinessName || 'Platform';
-  const canSwitch = role === 'SUPERADMIN' && businesses.length > 0;
+  const label = selectedBusiness?.name || currentBusinessName || 'Platform Admin';
+  const canSwitch = isSuperAdmin && businesses.length > 0;
 
   const applyBusiness = (businessId: string) => {
     setCookie(BUSINESS_CONTEXT_COOKIE, businessId, {
@@ -65,6 +68,12 @@ export default function BusinessSwitcher({
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30,
     });
+    setOpen(false);
+    router.refresh();
+  };
+
+  const clearBusiness = () => {
+    deleteCookie(BUSINESS_CONTEXT_COOKIE, { path: '/' });
     setOpen(false);
     router.refresh();
   };
@@ -154,6 +163,35 @@ export default function BusinessSwitcher({
             </div>
 
             <div style={{ maxHeight: 260, overflowY: 'auto', padding: 6 }}>
+              <button
+                type="button"
+                onClick={clearBusiness}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  border: 'none',
+                  backgroundColor: !currentBusinessId ? 'rgba(59, 130, 246, 0.14)' : 'transparent',
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    Platform Admin
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    All businesses overview
+                  </div>
+                </div>
+                {!currentBusinessId ? <Check size={14} color="var(--accent-color)" /> : null}
+              </button>
+
               {businesses.map((business) => {
                 const active = business.id === currentBusinessId;
 

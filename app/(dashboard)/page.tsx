@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import Link from 'next/link';
 import DashboardChart from '@/components/DashboardChart';
 import GrowthFilterMenu from '@/components/GrowthFilterMenu';
 import StatusPill from '@/components/StatusPill';
@@ -18,9 +19,13 @@ import { checkMpesaConnection } from '@/lib/mpesaClient';
 import { checkSmsConnection } from '@/lib/smsClient';
 import {
   Activity,
+  Building2,
   BarChart3,
   CheckCircle2,
   Gauge,
+  ShieldCheck,
+  Users,
+  CalendarClock,
   TrendingDown,
   TrendingUp,
   Wallet,
@@ -30,6 +35,31 @@ import {
 export const dynamic = 'force-dynamic';
 
 const MPESA_VERIFIED_STATUSES = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'] as const;
+
+function formatSubscriptionCountdown(subscriptionEndsAt: Date | string | null | undefined) {
+  if (!subscriptionEndsAt) {
+    return 'No subscription set';
+  }
+
+  const endsAt = new Date(subscriptionEndsAt);
+  const diffMs = endsAt.getTime() - Date.now();
+
+  if (Number.isNaN(endsAt.getTime())) {
+    return 'No subscription set';
+  }
+
+  if (diffMs <= 0) {
+    return 'Expired';
+  }
+
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (daysRemaining <= 0) {
+    return 'Less than 1 day left';
+  }
+
+  return `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left`;
+}
 
 function TrendCopy({
   trend,
@@ -54,7 +84,176 @@ export default async function Dashboard({
 }: {
   searchParams?: Promise<{ period?: string }>;
 }) {
-  const { selectedBusinessId } = await resolveAdminContextFromCookies();
+  const { admin, selectedBusinessId } = await resolveAdminContextFromCookies();
+
+  if (admin?.role === 'SUPERADMIN' && !selectedBusinessId) {
+    const businesses = await prisma.business.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        admins: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        _count: {
+          select: {
+            admins: true,
+            users: true,
+            transactions: true,
+          },
+        },
+      },
+    });
+
+    const activeBusinesses = businesses.filter((business) => business.status === 'ACTIVE');
+    const suspendedBusinesses = businesses.filter((business) => business.status === 'SUSPENDED');
+    const expiringSoonBusinesses = businesses.filter((business) => {
+      const effectiveEndsAt = business.subscriptionEndsAt
+        ? new Date(business.subscriptionEndsAt)
+        : new Date(business.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const diffMs = effectiveEndsAt.getTime() - Date.now();
+      const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      return diffMs > 0 && daysRemaining <= 7;
+    });
+
+    return (
+      <div className="dashboard-scroll">
+        <div className="dashboard-header" style={{ alignItems: 'flex-end', gap: 20 }}>
+          <div>
+            <h1>Admin Portal</h1>
+            <p>Manage tenant accounts, access, and subscription timing.</p>
+          </div>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '6px 12px', backgroundColor: 'var(--bg-hover)', borderRadius: 999, border: '1px solid var(--border-color)', fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+            <ShieldCheck size={14} color="var(--success-color)" />
+            <span>{businesses.length} accounts managed</span>
+          </div>
+        </div>
+
+        <div className="grid-top">
+          <div className="card">
+            <div className="card-title">Managed Accounts</div>
+            <div className="card-value">{businesses.length.toLocaleString()}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>All tenant businesses under the platform.</div>
+          </div>
+          <div className="card">
+            <div className="card-title">Active Accounts</div>
+            <div className="card-value">{activeBusinesses.length.toLocaleString()}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Currently available for live traffic.</div>
+          </div>
+          <div className="card">
+            <div className="card-title">Expiring Soon</div>
+            <div className="card-value">{expiringSoonBusinesses.length.toLocaleString()}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Subscriptions ending within 7 days.</div>
+          </div>
+        </div>
+
+        <div className="grid-middle">
+          <div className="card" style={{ padding: 0 }}>
+            <div style={{ padding: '24px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <Building2 size={18} color="var(--accent-color)" />
+              <div className="card-title" style={{ color: 'var(--text-primary)', marginBottom: 0 }}>Managed Businesses</div>
+            </div>
+            <div style={{ padding: '24px', display: 'grid', gap: 14 }}>
+              {businesses.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', fontSize: 14 }}>No businesses yet. Create the first tenant to get started.</div>
+              ) : businesses.map((business) => (
+                (() => {
+                  const effectiveEndsAt = business.subscriptionEndsAt
+                    ? new Date(business.subscriptionEndsAt)
+                    : new Date(business.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+                  const isExpired = effectiveEndsAt.getTime() <= Date.now();
+
+                  return (
+                <div
+                  key={business.id}
+                  style={{
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 16,
+                    padding: 18,
+                    background: 'linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0))',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{business.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {business.serviceCode || business.slug} • {business.ownerName || business.ownerEmail || 'No owner set'}
+                      </div>
+                    </div>
+                    <StatusPill label={business.status === 'ACTIVE' ? 'Active' : 'Suspended'} tone={business.status === 'ACTIVE' ? 'success' : 'warning'} />
+                  </div>
+
+                  <div style={{ marginTop: 14, display: 'grid', gap: 10, fontSize: 13, color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>Subscription</span>
+                      <strong style={{ color: isExpired ? 'var(--danger-color)' : 'var(--success-color)' }}>
+                        {formatSubscriptionCountdown(effectiveEndsAt)}
+                      </strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>Customers</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{business._count?.users ?? 0}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>Admins</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{business._count?.admins ?? 0}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                      <span>Transactions</span>
+                      <strong style={{ color: 'var(--text-primary)' }}>{business._count?.transactions ?? 0}</strong>
+                    </div>
+                  </div>
+                </div>
+                  );
+                })()
+              ))}
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="card-title" style={{ color: 'var(--text-primary)' }}>Portal Notes</div>
+            <div style={{ display: 'grid', gap: 14, marginTop: 18, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.6 }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <CalendarClock size={16} color="var(--accent-color)" />
+                <span>Use the business selector in the top bar to switch from platform view into any tenant’s live dashboard.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <Users size={16} color="var(--accent-color)" />
+                <span>Business owners and staff do not see the Businesses portal entry. They only see their tenant workspace.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <ShieldCheck size={16} color="var(--accent-color)" />
+                <span>Platform settings stay generic. Tenant credentials and operational data belong under each business account.</span>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Link href="/businesses" style={{ color: 'var(--accent-color)', fontWeight: 600, textDecoration: 'none' }}>
+                  Open full business management
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedBusinessId) {
+    return (
+      <div className="dashboard-scroll">
+        <div className="card" style={{ marginTop: 24, padding: 24 }}>
+          <h1 style={{ marginTop: 0 }}>Select an account</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Choose a business from the top bar to load its operational dashboard.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const now = new Date();
   const resolvedSearchParams = await searchParams;
   const period = resolveDashboardPeriod(resolvedSearchParams?.period, now);

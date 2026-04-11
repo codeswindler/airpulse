@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { prisma } from '@/lib/prisma';
 import SearchBar from '@/components/SearchBar';
 import ExportCSV from '@/components/ExportCSV';
@@ -9,7 +10,37 @@ import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/tr
 export const dynamic = 'force-dynamic';
 
 export default async function TransactionsPage({ searchParams }: { searchParams: { q?: string } }) {
-  const { selectedBusinessId } = await resolveAdminContextFromCookies();
+  const { admin, selectedBusinessId } = await resolveAdminContextFromCookies();
+
+  if (admin?.role === 'SUPERADMIN' && !selectedBusinessId) {
+    return (
+      <div className="dashboard-scroll">
+        <div className="card" style={{ marginTop: 24, padding: 24 }}>
+          <h1 style={{ marginTop: 0 }}>Select an account</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            The transaction ledger is tenant-scoped. Choose a business from the account filter to view its ledger.
+          </p>
+          <Link href="/" style={{ color: 'var(--accent-color)', fontWeight: 600, textDecoration: 'none' }}>
+            Go to admin portal
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  if (!selectedBusinessId) {
+    return (
+      <div className="dashboard-scroll">
+        <div className="card" style={{ marginTop: 24, padding: 24 }}>
+          <h1 style={{ marginTop: 0 }}>Account required</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Choose a business before opening the transaction ledger.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const query = searchParams.q || '';
   
   const transactions = await prisma.transaction.findMany({ 

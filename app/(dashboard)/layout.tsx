@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
-import { getCookie, setCookie } from "cookies-next";
+import { deleteCookie, getCookie, setCookie } from "cookies-next";
 import SmsBalanceBadge from "@/components/SmsBalanceBadge";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -64,7 +64,7 @@ export default function DashboardLayout({
         const resolvedBusinessId = isSuperAdmin
           ? (cookieMatchesTenant
             ? cookieCandidate
-            : meData.businessId || nextBusinesses[0]?.id || null)
+            : meData.businessId || null)
           : (meData.businessId || nextBusinesses[0]?.id || null);
 
         if (active) {
@@ -78,7 +78,7 @@ export default function DashboardLayout({
           setBusinesses(nextBusinesses);
         }
 
-        const shouldRefresh = isSuperAdmin && cookieBusinessId !== resolvedBusinessId;
+        const shouldRefresh = isSuperAdmin && (cookieCandidate !== resolvedBusinessId);
 
         if (resolvedBusinessId) {
           setCookie(BUSINESS_CONTEXT_COOKIE, resolvedBusinessId, {
@@ -86,6 +86,8 @@ export default function DashboardLayout({
             sameSite: 'lax',
             maxAge: 60 * 60 * 24 * 30,
           });
+        } else if (isSuperAdmin && cookieCandidate) {
+          deleteCookie(BUSINESS_CONTEXT_COOKIE, { path: '/' });
         }
 
         if (shouldRefresh) {
@@ -210,7 +212,9 @@ export default function DashboardLayout({
               currentBusinessName={adminBusinessName}
               businesses={businesses}
             />
-            <SmsBalanceBadge businessId={adminBusinessId} />
+            {adminRole === 'SUPERADMIN' && !adminBusinessId ? null : (
+              <SmsBalanceBadge businessId={adminBusinessId} />
+            )}
             <div className="badge-date">Apr 05</div>
             <ThemeToggle />
             <ProfileDropdown />

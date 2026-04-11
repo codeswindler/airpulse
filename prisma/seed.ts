@@ -23,6 +23,7 @@ async function main() {
       description: 'Primary tenant account for the current AirPulse deployment.',
       status: 'ACTIVE',
       ownerName: 'NASTEC TECHNOLOGIES',
+      subscriptionEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
   });
 

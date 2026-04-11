@@ -27,9 +27,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
     }
 
+    if (!selectedBusinessId) {
+      return NextResponse.json({ error: 'Select a business first' }, { status: 400 });
+    }
+
     const lookupWhere = {
       phoneNumber: String(phoneNumber).trim(),
-      businessId: selectedBusinessId ?? auth.businessId ?? null,
+      businessId: selectedBusinessId,
     };
 
     const existingUser = await prisma.user.findFirst({ where: lookupWhere });
