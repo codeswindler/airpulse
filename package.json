@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "backfill:nastec": "tsx scripts/backfill-nastec.ts"
   },
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
