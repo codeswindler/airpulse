@@ -62,6 +62,13 @@ export default function LoginPage() {
         throw new Error(data.error || 'Invalid credentials');
       }
 
+      if (data.token) {
+        setCookie('admin_session', data.token, { maxAge: 60 * 60 * 24 });
+        router.push('/');
+        router.refresh();
+        return;
+      }
+
       if (!data.otpRequired || !data.challengeToken) {
         throw new Error('OTP challenge was not created');
       }
