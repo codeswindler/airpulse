@@ -27,6 +27,8 @@ export default function DashboardLayout({
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [adminRole, setAdminRole] = useState<string | null>(null);
+  const [adminName, setAdminName] = useState<string | null>(null);
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
   const [adminBusinessId, setAdminBusinessId] = useState<string | null>(null);
   const [adminBusinessName, setAdminBusinessName] = useState<string | null>(null);
   const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
@@ -69,6 +71,8 @@ export default function DashboardLayout({
 
         if (active) {
           setAdminRole(meData.role || null);
+          setAdminName(meData.name || null);
+          setAdminEmail(meData.email || null);
           setAdminBusinessId(resolvedBusinessId);
           setAdminBusinessName(
             nextBusinesses.find((business: BusinessOption) => business.id === resolvedBusinessId)?.name
@@ -104,6 +108,29 @@ export default function DashboardLayout({
       active = false;
     };
   }, []);
+
+  const handleBusinessChange = (businessId: string | null, businessName?: string | null) => {
+    setAdminBusinessId(businessId);
+    setAdminBusinessName(
+      businessName
+      || businesses.find((business) => business.id === businessId)?.name
+      || null
+    );
+  };
+
+  const handleProfileUpdated = (updated: { name?: string | null; email?: string | null; role?: string | null }) => {
+    if (typeof updated.name !== 'undefined') {
+      setAdminName(updated.name || null);
+    }
+
+    if (typeof updated.email !== 'undefined') {
+      setAdminEmail(updated.email || null);
+    }
+
+    if (typeof updated.role !== 'undefined') {
+      setAdminRole(updated.role || null);
+    }
+  };
 
   useEffect(() => {
     if (!mobileMenuOpen) {
@@ -211,13 +238,19 @@ export default function DashboardLayout({
               currentBusinessId={adminBusinessId}
               currentBusinessName={adminBusinessName}
               businesses={businesses}
+              onBusinessChange={handleBusinessChange}
             />
             {adminRole === 'SUPERADMIN' && !adminBusinessId ? null : (
               <SmsBalanceBadge businessId={adminBusinessId} />
             )}
             <div className="badge-date">Apr 05</div>
             <ThemeToggle />
-            <ProfileDropdown />
+            <ProfileDropdown
+              adminName={adminName}
+              adminEmail={adminEmail}
+              adminRole={adminRole}
+              onProfileUpdated={handleProfileUpdated}
+            />
           </div>
         </header>
         {children}

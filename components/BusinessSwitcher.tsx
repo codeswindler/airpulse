@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { deleteCookie, setCookie } from 'cookies-next';
 import { Building2, Check, ChevronDown } from 'lucide-react';
 import { BUSINESS_CONTEXT_COOKIE } from '@/lib/businessContext';
@@ -18,6 +17,7 @@ type Props = {
   currentBusinessId: string | null;
   currentBusinessName: string | null;
   businesses: BusinessOption[];
+  onBusinessChange?: (businessId: string | null, businessName?: string | null) => void;
 };
 
 export default function BusinessSwitcher({
@@ -25,8 +25,8 @@ export default function BusinessSwitcher({
   currentBusinessId,
   currentBusinessName,
   businesses,
+  onBusinessChange,
 }: Props) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const selectedBusiness = useMemo(
     () => businesses.find((business) => business.id === currentBusinessId) ?? null,
@@ -63,19 +63,22 @@ export default function BusinessSwitcher({
   const canSwitch = isSuperAdmin && businesses.length > 0;
 
   const applyBusiness = (businessId: string) => {
+    const nextBusiness = businesses.find((business) => business.id === businessId) ?? null;
     setCookie(BUSINESS_CONTEXT_COOKIE, businessId, {
       path: '/',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 30,
     });
+    onBusinessChange?.(businessId, nextBusiness?.name ?? null);
     setOpen(false);
-    router.refresh();
+    window.location.reload();
   };
 
   const clearBusiness = () => {
     deleteCookie(BUSINESS_CONTEXT_COOKIE, { path: '/' });
+    onBusinessChange?.(null, null);
     setOpen(false);
-    router.refresh();
+    window.location.reload();
   };
 
   if (!canSwitch) {
