@@ -184,7 +184,7 @@ export default function DashboardLayout({
           {adminRole === 'SUPERADMIN' ? (
             <Link href="/settings" style={{ textDecoration: 'none' }}>
               <li className="sidebar-item">
-                <span>Configurations</span>
+                <span>Shared Callbacks</span>
               </li>
             </Link>
           ) : null}
