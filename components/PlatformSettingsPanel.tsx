@@ -46,7 +46,6 @@ type SharedSettings = {
     smtp_from_email: string;
     smtp_from_name: string;
     smtp_enabled: string;
-    email_threshold: string;
   };
   note?: string;
 };
@@ -69,7 +68,6 @@ type SettingsForm = {
   smtp_from_email: string;
   smtp_from_name: string;
   smtp_enabled: string;
-  email_threshold: string;
 };
 
 const DEFAULT_FORM: SettingsForm = {
@@ -90,15 +88,14 @@ const DEFAULT_FORM: SettingsForm = {
   smtp_from_email: '',
   smtp_from_name: '',
   smtp_enabled: 'true',
-  email_threshold: '0',
 };
 
 const cardFieldStyle: CSSProperties = {
   width: '100%',
   borderRadius: 12,
-  border: '1px solid var(--border-color)',
-  background: 'var(--bg-elevated)',
-  color: 'var(--text-primary)',
+  border: '1px solid rgba(96, 165, 250, 0.24)',
+  background: 'rgba(15, 23, 42, 0.88)',
+  color: '#f8fafc',
   padding: '12px 14px',
   outline: 'none',
 };
@@ -140,7 +137,6 @@ function mergeForm(settings: SharedSettings | null): SettingsForm {
     smtp_from_email: normalizeString(settings?.platformEmail?.smtp_from_email),
     smtp_from_name: normalizeString(settings?.platformEmail?.smtp_from_name),
     smtp_enabled: normalizeString(settings?.platformEmail?.smtp_enabled, DEFAULT_FORM.smtp_enabled),
-    email_threshold: normalizeString(settings?.platformEmail?.email_threshold, DEFAULT_FORM.email_threshold),
   };
 }
 
@@ -155,12 +151,12 @@ function Field({
 }) {
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <label style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.7 }}>
+      <label style={{ fontSize: 12, fontWeight: 800, color: 'rgba(226, 232, 240, 0.92)', textTransform: 'uppercase', letterSpacing: 0.7 }}>
         {label}
       </label>
       {children}
       {help ? (
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 12, color: 'rgba(148, 163, 184, 0.95)', lineHeight: 1.5 }}>
           {help}
         </div>
       ) : null}
@@ -205,6 +201,8 @@ export default function PlatformSettingsPanel() {
   }, []);
 
   const isSuperAdmin = role === 'SUPERADMIN';
+  const smsProvider = form.sms_provider === 'onfon' ? 'onfon' : 'advanta';
+  const smsProviderLabel = smsProvider === 'onfon' ? 'Onfon' : 'Advanta';
   const callbackRows = [
     {
       label: 'M-Pesa callback',
@@ -555,20 +553,40 @@ export default function PlatformSettingsPanel() {
               </div>
               <div style={topBadgeStyle}>
                 <MessageSquareText size={14} color="var(--accent-color)" />
-                <span>{form.sms_provider || 'sms'}</span>
+                <span>{smsProviderLabel}</span>
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
               <Field label="SMS Provider" help="Choose the gateway you use for platform-wide alerts.">
-                <select
-                  value={form.sms_provider}
-                  onChange={(event) => updateForm('sms_provider', event.target.value)}
-                  style={cardFieldStyle}
-                >
-                  <option value="advanta">Advanta</option>
-                  <option value="onfon">Onfon</option>
-                </select>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {(['advanta', 'onfon'] as const).map((provider) => {
+                    const active = smsProvider === provider;
+                    return (
+                      <button
+                        key={provider}
+                        type="button"
+                        onClick={() => updateForm('sms_provider', provider)}
+                        style={{
+                          flex: '1 1 120px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '11px 14px',
+                          borderRadius: 12,
+                          border: active ? '1px solid rgba(59, 130, 246, 0.55)' : '1px solid rgba(148, 163, 184, 0.22)',
+                          background: active ? 'rgba(59, 130, 246, 0.18)' : 'rgba(15, 23, 42, 0.88)',
+                          color: active ? '#eff6ff' : 'rgba(226, 232, 240, 0.84)',
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {provider}
+                      </button>
+                    );
+                  })}
+                </div>
               </Field>
 
               <Field label="SMS Threshold" help="Warn the admin when platform SMS units fall below this value.">
@@ -582,78 +600,82 @@ export default function PlatformSettingsPanel() {
               </Field>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-              <Field label="Advanta Partner ID">
-                <input
-                  type="text"
-                  value={form.advanta_partner_id}
-                  onChange={(event) => updateForm('advanta_partner_id', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="Partner ID"
-                />
-              </Field>
-              <Field label="Advanta API Key">
-                <input
-                  type="password"
-                  value={form.advanta_api_key}
-                  onChange={(event) => updateForm('advanta_api_key', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="API key"
-                />
-              </Field>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-              <Field label="Advanta Sender ID">
-                <input
-                  type="text"
-                  value={form.advanta_sender_id}
-                  onChange={(event) => updateForm('advanta_sender_id', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="Sender ID"
-                />
-              </Field>
-              <Field label="Onfon Access Key">
-                <input
-                  type="password"
-                  value={form.onfon_access_key}
-                  onChange={(event) => updateForm('onfon_access_key', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="Access key"
-                />
-              </Field>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-              <Field label="Onfon API Key">
-                <input
-                  type="password"
-                  value={form.onfon_api_key}
-                  onChange={(event) => updateForm('onfon_api_key', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="API key"
-                />
-              </Field>
-              <Field label="Onfon Client ID">
-                <input
-                  type="text"
-                  value={form.onfon_client_id}
-                  onChange={(event) => updateForm('onfon_client_id', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="Client ID"
-                />
-              </Field>
-            </div>
-
-            <Field label="Onfon Sender ID">
-              <input
-                type="text"
-                value={form.onfon_sender_id}
-                onChange={(event) => updateForm('onfon_sender_id', event.target.value)}
-                style={cardFieldStyle}
-                placeholder="Sender ID"
-              />
-            </Field>
+            {smsProvider === 'advanta' ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <Field label="Advanta Partner ID">
+                    <input
+                      type="text"
+                      value={form.advanta_partner_id}
+                      onChange={(event) => updateForm('advanta_partner_id', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="Partner ID"
+                    />
+                  </Field>
+                  <Field label="Advanta API Key">
+                    <input
+                      type="password"
+                      value={form.advanta_api_key}
+                      onChange={(event) => updateForm('advanta_api_key', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="API key"
+                    />
+                  </Field>
+                </div>
+                <Field label="Advanta Sender ID">
+                  <input
+                    type="text"
+                    value={form.advanta_sender_id}
+                    onChange={(event) => updateForm('advanta_sender_id', event.target.value)}
+                    style={cardFieldStyle}
+                    placeholder="Sender ID"
+                  />
+                </Field>
+              </>
+            ) : (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <Field label="Onfon Access Key">
+                    <input
+                      type="password"
+                      value={form.onfon_access_key}
+                      onChange={(event) => updateForm('onfon_access_key', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="Access key"
+                    />
+                  </Field>
+                  <Field label="Onfon API Key">
+                    <input
+                      type="password"
+                      value={form.onfon_api_key}
+                      onChange={(event) => updateForm('onfon_api_key', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="API key"
+                    />
+                  </Field>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <Field label="Onfon Client ID">
+                    <input
+                      type="text"
+                      value={form.onfon_client_id}
+                      onChange={(event) => updateForm('onfon_client_id', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="Client ID"
+                    />
+                  </Field>
+                  <Field label="Onfon Sender ID">
+                    <input
+                      type="text"
+                      value={form.onfon_sender_id}
+                      onChange={(event) => updateForm('onfon_sender_id', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="Sender ID"
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="card" style={{ display: 'grid', gap: 10 }}>
@@ -758,15 +780,6 @@ export default function PlatformSettingsPanel() {
                   <option value="ssl">SSL</option>
                   <option value="off">Off</option>
                 </select>
-              </Field>
-              <Field label="Email Threshold" help="Used as the warning level for outbound email usage.">
-                <input
-                  type="number"
-                  value={form.email_threshold}
-                  onChange={(event) => updateForm('email_threshold', event.target.value)}
-                  style={cardFieldStyle}
-                  placeholder="0"
-                />
               </Field>
             </div>
 

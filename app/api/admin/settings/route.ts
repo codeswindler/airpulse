@@ -49,7 +49,6 @@ export async function GET(req: NextRequest) {
         smtp_from_email: getSettingValue(settings, 'smtp_from_email'),
         smtp_from_name: getSettingValue(settings, 'smtp_from_name'),
         smtp_enabled: getSettingValue(settings, 'smtp_enabled', 'true'),
-        email_threshold: getSettingValue(settings, 'email_threshold', '0'),
       },
       note: 'These callbacks are shared across every business account.',
     });
