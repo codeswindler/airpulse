@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, KeyRound, Loader2, Plus, Users, X } from 'lucide-react';
+import { Building2, CalendarClock, KeyRound, Loader2, Plus, Power, Trash2, Users, X } from 'lucide-react';
 import StatusPill from '@/components/StatusPill';
 
 type BusinessRecord = {
@@ -40,6 +40,7 @@ type FormState = {
   ownerName: string;
   ownerEmail: string;
   ownerPassword: string;
+  subscriptionEndsAt: string;
   mpesaConsumerKey: string;
   mpesaConsumerSecret: string;
   mpesaPasskey: string;
@@ -69,6 +70,7 @@ const EMPTY_FORM: FormState = {
   ownerName: '',
   ownerEmail: '',
   ownerPassword: '',
+  subscriptionEndsAt: '',
   mpesaConsumerKey: '',
   mpesaConsumerSecret: '',
   mpesaPasskey: '',
@@ -92,7 +94,7 @@ const EMPTY_FORM: FormState = {
 const FIELD_GROUPS: Array<{ title: string; fields: Array<keyof FormState> }> = [
   {
     title: 'Business Profile',
-    fields: ['name', 'slug', 'serviceCode', 'status', 'description', 'ownerName', 'ownerEmail', 'ownerPassword'],
+    fields: ['name', 'slug', 'serviceCode', 'status', 'description', 'ownerName', 'ownerEmail', 'ownerPassword', 'subscriptionEndsAt'],
   },
   {
     title: 'M-Pesa',
@@ -160,6 +162,20 @@ function formatSubscription(subscription: BusinessRecord['subscription']) {
   return new Date(subscription.endsAt).toLocaleDateString();
 }
 
+function toDateTimeLocalValue(value: string | null | undefined) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  const timezoneOffset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
+}
+
 export default function BusinessesPage() {
   const [businesses, setBusinesses] = useState<BusinessRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -168,6 +184,11 @@ export default function BusinessesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [role, setRole] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [subscriptionTarget, setSubscriptionTarget] = useState<BusinessRecord | null>(null);
+  const [subscriptionMode, setSubscriptionMode] = useState<'ADD' | 'DEBIT'>('ADD');
+  const [subscriptionDays, setSubscriptionDays] = useState('');
+  const [subscriptionHours, setSubscriptionHours] = useState('');
 
   const editingBusiness = useMemo(
     () => businesses.find((business) => business.id === editingId) ?? null,
@@ -216,6 +237,7 @@ export default function BusinessesPage() {
       description: business.description || '',
       ownerName: business.ownerName || '',
       ownerEmail: business.ownerEmail || '',
+      subscriptionEndsAt: toDateTimeLocalValue(business.subscriptionEndsAt),
       mpesaConsumerKey: business.credentials.mpesaConsumerKey || '',
       mpesaConsumerSecret: business.credentials.mpesaConsumerSecret || '',
       mpesaPasskey: business.credentials.mpesaPasskey || '',
@@ -246,6 +268,118 @@ export default function BusinessesPage() {
 
   const updateField = (field: keyof FormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const patchBusiness = async (businessId: string, payload: Record<string, unknown>) => {
+    const response = await fetch(`/api/admin/businesses/${businessId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to update business');
+    }
+
+    await loadBusinesses();
+  };
+
+  const handleToggleStatus = async (business: BusinessRecord) => {
+    const nextStatus = business.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE';
+    const prompt = nextStatus === 'SUSPENDED'
+      ? `Suspend ${business.name}? They will stop receiving live traffic until reactivated.`
+      : `Reactivate ${business.name}?`;
+
+    if (!window.confirm(prompt)) {
+      return;
+    }
+
+    setActionLoadingId(business.id);
+
+    try {
+      await patchBusiness(business.id, { status: nextStatus });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to update business status');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const openSubscriptionAdjuster = (business: BusinessRecord) => {
+    setSubscriptionTarget(business);
+    setSubscriptionMode('ADD');
+    setSubscriptionDays('');
+    setSubscriptionHours('');
+  };
+
+  const closeSubscriptionAdjuster = () => {
+    setSubscriptionTarget(null);
+    setSubscriptionMode('ADD');
+    setSubscriptionDays('');
+    setSubscriptionHours('');
+  };
+
+  const handleSubscriptionAdjust = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!subscriptionTarget) {
+      return;
+    }
+
+    const days = Number(subscriptionDays || 0);
+    const hours = Number(subscriptionHours || 0);
+
+    if (!Number.isFinite(days) || !Number.isFinite(hours)) {
+      alert('Please enter valid days and hours.');
+      return;
+    }
+
+    if (days === 0 && hours === 0) {
+      alert('Enter at least one day or hour adjustment.');
+      return;
+    }
+
+    setActionLoadingId(subscriptionTarget.id);
+
+    try {
+      await patchBusiness(subscriptionTarget.id, {
+        subscriptionDeltaDays: days,
+        subscriptionDeltaHours: hours,
+        subscriptionMode,
+      });
+      closeSubscriptionAdjuster();
+    } catch (error: any) {
+      alert(error?.message || 'Failed to update subscription');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDeleteBusiness = async (business: BusinessRecord) => {
+    const confirmText = `Delete ${business.name} permanently? This removes the business and all attached tenant data.`;
+    if (!window.confirm(confirmText)) {
+      return;
+    }
+
+    setActionLoadingId(business.id);
+
+    try {
+      const response = await fetch(`/api/admin/businesses/${business.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete business');
+      }
+
+      await loadBusinesses();
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete business');
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -359,17 +493,47 @@ export default function BusinessesPage() {
               </div>
             </div>
 
-            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-              <button
-                type="button"
-                onClick={() => openEditModal(business)}
-                style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: 'pointer' }}
-              >
-                Edit
-              </button>
+            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)' }}>
                 <Users size={14} />
                 <span>{business.credentialFill.total} fields set</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => openEditModal(business)}
+                  disabled={actionLoadingId === business.id}
+                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer' }}
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSubscriptionAdjuster(business)}
+                  disabled={actionLoadingId === business.id}
+                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                  <CalendarClock size={14} />
+                  Adjust
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleToggleStatus(business)}
+                  disabled={actionLoadingId === business.id}
+                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Power size={14} />
+                  {business.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteBusiness(business)}
+                  disabled={actionLoadingId === business.id}
+                  style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 10, padding: '10px 14px', color: 'var(--danger-color)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                >
+                  <Trash2 size={14} />
+                  Delete
+                </button>
               </div>
             </div>
           </div>
@@ -485,6 +649,7 @@ export default function BusinessesPage() {
                         ownerName: 'Owner Name',
                         ownerEmail: 'Owner Email',
                         ownerPassword: 'Owner Password',
+                        subscriptionEndsAt: 'Subscription Ends At',
                         mpesaConsumerKey: 'Consumer Key',
                         mpesaConsumerSecret: 'Consumer Secret',
                         mpesaPasskey: 'Passkey',
@@ -510,9 +675,10 @@ export default function BusinessesPage() {
                         ownerEmail: 'email',
                         mpesaCallbackUrl: 'url',
                         serviceCode: 'text',
+                        subscriptionEndsAt: 'datetime-local',
                       };
 
-                      if (field === 'name' || field === 'slug' || field === 'serviceCode' || field === 'ownerName' || field === 'ownerEmail' || field === 'ownerPassword' || field === 'mpesaConsumerKey' || field === 'mpesaConsumerSecret' || field === 'mpesaPasskey' || field === 'mpesaShortcode' || field === 'mpesaBusinessShortcode' || field === 'mpesaPartyB' || field === 'mpesaCallbackUrl' || field === 'tupayUuid' || field === 'tupayApiKey' || field === 'tupaySecret' || field === 'smsProvider' || field === 'smsPartnerId' || field === 'smsApiKey' || field === 'smsSenderId' || field === 'smsAccessKey' || field === 'smsClientId') {
+                      if (field === 'name' || field === 'slug' || field === 'serviceCode' || field === 'ownerName' || field === 'ownerEmail' || field === 'ownerPassword' || field === 'subscriptionEndsAt' || field === 'mpesaConsumerKey' || field === 'mpesaConsumerSecret' || field === 'mpesaPasskey' || field === 'mpesaShortcode' || field === 'mpesaBusinessShortcode' || field === 'mpesaPartyB' || field === 'mpesaCallbackUrl' || field === 'tupayUuid' || field === 'tupayApiKey' || field === 'tupaySecret' || field === 'smsProvider' || field === 'smsPartnerId' || field === 'smsApiKey' || field === 'smsSenderId' || field === 'smsAccessKey' || field === 'smsClientId') {
                         return (
                           <label key={field} style={{ display: 'grid', gap: 6 }}>
                             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{labelMap[field]}</span>
@@ -550,6 +716,126 @@ export default function BusinessesPage() {
                 >
                   {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
                   {editingBusiness ? 'Save Changes' : 'Create Business'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {subscriptionTarget ? (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 1001,
+          backgroundColor: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(4px)',
+          padding: 16,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div className="card glass-card" style={{ width: '100%', maxWidth: 520, backgroundColor: 'var(--bg-sidebar)', padding: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 20 }}>Adjust Subscription</h2>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  {subscriptionTarget.name}
+                </div>
+              </div>
+              <button onClick={closeSubscriptionAdjuster} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gap: 14, marginBottom: 18, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>Current expiry</span>
+                <strong style={{ color: 'var(--text-primary)' }}>{formatSubscription(subscriptionTarget.subscription)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                <span>Mode</span>
+                <strong style={{ color: subscriptionMode === 'ADD' ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                  {subscriptionMode === 'ADD' ? 'Add time' : 'Debit time'}
+                </strong>
+              </div>
+            </div>
+
+            <form onSubmit={handleSubscriptionAdjust} style={{ display: 'grid', gap: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14 }}>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Days</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={subscriptionDays}
+                    onChange={(e) => setSubscriptionDays(e.target.value)}
+                    placeholder="0"
+                    style={{ width: '100%', padding: 10, borderRadius: 8, backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Hours</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={subscriptionHours}
+                    onChange={(e) => setSubscriptionHours(e.target.value)}
+                    placeholder="0"
+                    style={{ width: '100%', padding: 10, borderRadius: 8, backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: '#fff' }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setSubscriptionMode('ADD')}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: `1px solid ${subscriptionMode === 'ADD' ? 'var(--accent-color)' : 'var(--border-color)'}`,
+                    backgroundColor: subscriptionMode === 'ADD' ? 'rgba(59, 130, 246, 0.14)' : 'transparent',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSubscriptionMode('DEBIT')}
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    border: `1px solid ${subscriptionMode === 'DEBIT' ? 'var(--danger-color)' : 'var(--border-color)'}`,
+                    backgroundColor: subscriptionMode === 'DEBIT' ? 'rgba(239, 68, 68, 0.14)' : 'transparent',
+                    color: 'var(--text-primary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Debit
+                </button>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, paddingTop: 10 }}>
+                <button
+                  type="button"
+                  onClick={closeSubscriptionAdjuster}
+                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoadingId === subscriptionTarget.id}
+                  className="btn-primary"
+                  style={{ backgroundColor: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: '#fff', minWidth: 160, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                >
+                  {actionLoadingId === subscriptionTarget.id ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Apply
                 </button>
               </div>
             </form>

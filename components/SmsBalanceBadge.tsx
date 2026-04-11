@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Mail } from 'lucide-react';
+import { MessageSquareText } from 'lucide-react';
 
 type Props = {
   businessId?: string | null;
@@ -58,7 +58,7 @@ export default function SmsBalanceBadge({ businessId }: Props) {
       color: 'var(--text-primary)',
       fontWeight: 600
     }}>
-       <Mail size={14} color="var(--accent-color)" />
+        <MessageSquareText size={14} color="var(--accent-color)" />
        <span>{balance.toLocaleString()} Units</span>
     </div>
   );

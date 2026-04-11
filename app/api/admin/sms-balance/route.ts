@@ -15,10 +15,6 @@ export async function GET(req: NextRequest) {
       ? (requestedBusinessId || await getSelectedBusinessIdFromRequest(req, auth.businessId ?? null, auth))
       : (auth.businessId ?? null);
 
-    if (!selectedBusinessId) {
-      return NextResponse.json({ error: 'Select a business first' }, { status: 400 });
-    }
-
     const balance = await getSmsBalance(selectedBusinessId);
     return NextResponse.json(
       { balance },

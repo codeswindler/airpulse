@@ -58,6 +58,19 @@ function parseNullableDate(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function parseOptionalNumber(value: unknown) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return null;
+  }
+
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function getEffectiveSubscriptionEndsAt(business: { subscriptionEndsAt: Date | null; createdAt: Date }) {
+  return business.subscriptionEndsAt ?? new Date(business.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -83,6 +96,10 @@ export async function PATCH(
     const serviceCode = cleanNullableString(body.serviceCode);
     const description = cleanNullableString(body.description);
     const status: 'ACTIVE' | 'SUSPENDED' = cleanString(body.status).toUpperCase() === 'SUSPENDED' ? 'SUSPENDED' : 'ACTIVE';
+    const absoluteSubscriptionEndsAt = parseNullableDate(body.subscriptionEndsAt);
+    const subscriptionDeltaDays = parseOptionalNumber(body.subscriptionDeltaDays);
+    const subscriptionDeltaHours = parseOptionalNumber(body.subscriptionDeltaHours);
+    const subscriptionMode = cleanString(body.subscriptionMode).toUpperCase() === 'DEBIT' ? 'DEBIT' : 'ADD';
 
     if (slug !== business.slug) {
       const existingSlug = await prisma.business.findUnique({ where: { slug } });
@@ -98,6 +115,17 @@ export async function PATCH(
       }
     }
 
+    let nextSubscriptionEndsAt = getEffectiveSubscriptionEndsAt(business);
+    if (absoluteSubscriptionEndsAt) {
+      nextSubscriptionEndsAt = absoluteSubscriptionEndsAt;
+    }
+
+    if (subscriptionDeltaDays !== null || subscriptionDeltaHours !== null) {
+      const dayHours = (subscriptionDeltaDays ?? 0) * 24 + (subscriptionDeltaHours ?? 0);
+      const direction = subscriptionMode === 'DEBIT' ? -1 : 1;
+      nextSubscriptionEndsAt = new Date(nextSubscriptionEndsAt.getTime() + dayHours * 60 * 60 * 1000 * direction);
+    }
+
     const updatedBusiness = await prisma.business.update({
       where: { id },
       data: {
@@ -108,7 +136,7 @@ export async function PATCH(
         ownerName: cleanNullableString(body.ownerName),
         ownerEmail: cleanNullableString(body.ownerEmail),
         description,
-        subscriptionEndsAt: parseNullableDate(body.subscriptionEndsAt) ?? business.subscriptionEndsAt,
+        subscriptionEndsAt: nextSubscriptionEndsAt,
         mpesaConsumerKey: cleanNullableString(body.mpesaConsumerKey),
         mpesaConsumerSecret: cleanNullableString(body.mpesaConsumerSecret),
         mpesaPasskey: cleanNullableString(body.mpesaPasskey),
@@ -153,5 +181,47 @@ export async function PATCH(
   } catch (error) {
     console.error('[BUSINESSES] Update failed', error);
     return NextResponse.json({ error: 'Business update failed' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const auth = await getAuth(req);
+
+  if (!auth || auth.role !== 'SUPERADMIN') {
+    return NextResponse.json({ error: 'Permission denied' }, { status: 403 });
+  }
+
+  try {
+    const business = await prisma.business.findUnique({
+      where: { id },
+      select: { id: true, name: true },
+    });
+
+    if (!business) {
+      return NextResponse.json({ error: 'Business not found' }, { status: 404 });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.admin.deleteMany({ where: { businessId: id } });
+      await tx.transaction.deleteMany({ where: { businessId: id } });
+      await tx.ussdSession.deleteMany({ where: { businessId: id } });
+      await tx.savedPhone.deleteMany({ where: { businessId: id } });
+      await tx.user.deleteMany({ where: { businessId: id } });
+      await tx.business.delete({ where: { id } });
+    });
+
+    clearAirPulseTokenCache(id);
+    clearTupayBalanceCache(id);
+    clearSmsBalanceCache(id);
+    clearMpesaTokenCache(id);
+
+    return NextResponse.json({ success: true, deletedBusinessId: id });
+  } catch (error) {
+    console.error('[BUSINESSES] Delete failed', error);
+    return NextResponse.json({ error: 'Business delete failed' }, { status: 500 });
   }
 }

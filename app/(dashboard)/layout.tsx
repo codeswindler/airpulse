@@ -240,9 +240,7 @@ export default function DashboardLayout({
               businesses={businesses}
               onBusinessChange={handleBusinessChange}
             />
-            {adminRole === 'SUPERADMIN' && !adminBusinessId ? null : (
-              <SmsBalanceBadge businessId={adminBusinessId} />
-            )}
+            <SmsBalanceBadge businessId={adminBusinessId} />
             <div className="badge-date">Apr 05</div>
             <ThemeToggle />
             <ProfileDropdown

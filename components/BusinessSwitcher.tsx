@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { deleteCookie, setCookie } from 'cookies-next';
 import { Building2, Check, ChevronDown } from 'lucide-react';
 import { BUSINESS_CONTEXT_COOKIE } from '@/lib/businessContext';
@@ -27,6 +28,7 @@ export default function BusinessSwitcher({
   businesses,
   onBusinessChange,
 }: Props) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const selectedBusiness = useMemo(
     () => businesses.find((business) => business.id === currentBusinessId) ?? null,
@@ -71,14 +73,14 @@ export default function BusinessSwitcher({
     });
     onBusinessChange?.(businessId, nextBusiness?.name ?? null);
     setOpen(false);
-    window.location.reload();
+    router.refresh();
   };
 
   const clearBusiness = () => {
     deleteCookie(BUSINESS_CONTEXT_COOKIE, { path: '/' });
     onBusinessChange?.(null, null);
     setOpen(false);
-    window.location.reload();
+    router.refresh();
   };
 
   if (!canSwitch) {
