@@ -103,7 +103,12 @@ export async function POST(req: NextRequest) {
       transactionId: transaction.transactionId,
     });
 
-    const airtimeRes = await buyAirtimeFromBalance(transaction.targetPhone, transaction.amount, transaction.transactionId);
+    const airtimeRes = await buyAirtimeFromBalance(
+      transaction.targetPhone,
+      transaction.amount,
+      transaction.transactionId,
+      transaction.businessId,
+    );
     const providerReference = buildProviderReference(
       transaction.providerReference,
       airtimeRes?.id ? `tupay:${airtimeRes.id}` : null,
@@ -127,6 +132,7 @@ export async function POST(req: NextRequest) {
             stage: 'delivered',
             targetPhone: transaction.targetPhone,
             transactionId: transaction.transactionId,
+            businessId: transaction.businessId,
           });
           nextProviderReference = buildProviderReference(nextProviderReference, 'sms:delivered');
         } catch (error) {
@@ -152,6 +158,7 @@ export async function POST(req: NextRequest) {
             stage: 'pending',
             targetPhone: transaction.targetPhone,
             transactionId: transaction.transactionId,
+            businessId: transaction.businessId,
           });
           nextProviderReference = buildProviderReference(nextProviderReference, 'sms:pending');
         } catch (error) {

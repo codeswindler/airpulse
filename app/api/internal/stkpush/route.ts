@@ -11,10 +11,12 @@ export async function POST(req: NextRequest) {
     const targetPhone = body.targetPhone;
     const amount = body.amount;
     sessionId = body.sessionId;
+    const businessId = typeof body.businessId === 'string' && body.businessId.trim() ? body.businessId.trim() : null;
 
     await prisma.transaction.upsert({
       where: { transactionId: sessionId },
       update: {
+        businessId,
         amount,
         phoneNumber: payerPhone,
         providerReference: null,
@@ -22,6 +24,7 @@ export async function POST(req: NextRequest) {
         targetPhone,
       },
       create: {
+        businessId,
         transactionId: sessionId,
         phoneNumber: payerPhone,
         targetPhone,
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    const result = await initiateDarajaStkPush(payerPhone, amount, sessionId);
+    const result = await initiateDarajaStkPush(payerPhone, amount, sessionId, businessId);
 
     if (result.ResponseCode !== '0' || !result.CheckoutRequestID) {
       console.error('[M-PESA] STK initiation rejected', {

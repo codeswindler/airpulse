@@ -58,12 +58,25 @@ export default function SettingsPage() {
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>Loading configurations...</div>;
 
+  if (!isSuperAdmin) {
+    return (
+      <div className="dashboard-scroll">
+        <div className="card" style={{ marginTop: 24, padding: 24 }}>
+          <h1 style={{ marginTop: 0 }}>Platform settings</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Global configuration is restricted to superadmins. Business-specific credentials now live under each tenant.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-scroll">
       <div className="dashboard-header">
         <div>
-          <h1>Global Configurations</h1>
-          <p>Configure USSD protocols, SMS providers, and external API gateways.</p>
+          <h1>Platform Configurations</h1>
+          <p>Configure platform-wide callbacks, shared defaults, and external API gateways.</p>
         </div>
         <div className="action-buttons">
           <button 

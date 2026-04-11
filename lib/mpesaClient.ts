@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getBusinessIntegrationSnapshot } from './businessIntegrations';
 
 type MpesaConfig = {
   businessShortCode: string;
@@ -41,8 +42,12 @@ type MpesaCallbackPayload = {
   };
 };
 
-let cachedToken = '';
-let tokenExpiry = 0;
+type TokenCacheEntry = {
+  token: string;
+  expiry: number;
+};
+
+const tokenCache = new Map<string, TokenCacheEntry>();
 
 function firstNonEmpty(...values: Array<string | undefined | null>) {
   for (const value of values) {
@@ -52,6 +57,10 @@ function firstNonEmpty(...values: Array<string | undefined | null>) {
   }
 
   return undefined;
+}
+
+function getCacheKey(businessId?: string | null) {
+  return businessId?.trim() || 'global';
 }
 
 function getMpesaBaseUrl(environment: MpesaConfig['environment']) {
@@ -133,18 +142,22 @@ function cleanPhone(phone: string) {
   return normalized;
 }
 
-function getMpesaConfig(): MpesaConfig {
-  const consumerKey = firstNonEmpty(process.env.MPESA_CONSUMER_KEY);
-  const consumerSecret = firstNonEmpty(process.env.MPESA_CONSUMER_SECRET);
-  const passkey = firstNonEmpty(process.env.MPESA_PASSKEY);
-  const shortcode = firstNonEmpty(process.env.MPESA_SHORTCODE);
-  const businessShortCode = firstNonEmpty(process.env.MPESA_BUSINESS_SHORTCODE) ?? shortcode;
-  const partyB = firstNonEmpty(process.env.MPESA_PARTYB) ?? businessShortCode;
+async function getMpesaConfig(businessId?: string | null): Promise<MpesaConfig> {
+  const business = await getBusinessIntegrationSnapshot(businessId);
+  const consumerKey = firstNonEmpty(business?.mpesaConsumerKey, process.env.MPESA_CONSUMER_KEY);
+  const consumerSecret = firstNonEmpty(business?.mpesaConsumerSecret, process.env.MPESA_CONSUMER_SECRET);
+  const passkey = firstNonEmpty(business?.mpesaPasskey, process.env.MPESA_PASSKEY);
+  const shortcode = firstNonEmpty(business?.mpesaShortcode, process.env.MPESA_SHORTCODE);
+  const businessShortCode = firstNonEmpty(business?.mpesaBusinessShortcode, process.env.MPESA_BUSINESS_SHORTCODE) ?? shortcode;
+  const partyB = firstNonEmpty(business?.mpesaPartyB, process.env.MPESA_PARTYB) ?? businessShortCode;
   const appUrl = firstNonEmpty(process.env.APP_URL);
-  const callbackUrl = firstNonEmpty(process.env.MPESA_CALLBACK_URL) ?? (appUrl ? `${appUrl}/api/mpesa/callback` : undefined);
-  const rawEnvironment = firstNonEmpty(process.env.MPESA_ENV)?.toLowerCase();
+  const callbackUrl = firstNonEmpty(
+    business?.mpesaCallbackUrl,
+    process.env.MPESA_CALLBACK_URL,
+  ) ?? (appUrl ? `${appUrl}/api/mpesa/callback` : undefined);
+  const rawEnvironment = firstNonEmpty(business?.mpesaEnvironment, process.env.MPESA_ENV)?.toLowerCase();
   const environment = rawEnvironment === 'sandbox' ? 'sandbox' : 'production';
-  const transactionType = firstNonEmpty(process.env.MPESA_TRANSACTION_TYPE) ?? 'CustomerPayBillOnline';
+  const transactionType = firstNonEmpty(business?.mpesaTransactionType, process.env.MPESA_TRANSACTION_TYPE) ?? 'CustomerPayBillOnline';
 
   if (!consumerKey || !consumerSecret || !passkey || !shortcode || !businessShortCode || !partyB || !callbackUrl) {
     throw new Error('Missing M-Pesa Daraja credentials');
@@ -163,9 +176,12 @@ function getMpesaConfig(): MpesaConfig {
   };
 }
 
-async function getMpesaAccessToken(config: MpesaConfig, options: { bypassCache?: boolean } = {}) {
-  if (!options.bypassCache && cachedToken && Date.now() < tokenExpiry) {
-    return cachedToken;
+async function getMpesaAccessToken(config: MpesaConfig, options: { bypassCache?: boolean; cacheKey?: string } = {}) {
+  const cacheKey = options.cacheKey || 'global';
+  const cachedEntry = tokenCache.get(cacheKey);
+
+  if (!options.bypassCache && cachedEntry && Date.now() < cachedEntry.expiry) {
+    return cachedEntry.token;
   }
 
   const auth = Buffer.from(`${config.consumerKey}:${config.consumerSecret}`).toString('base64');
@@ -176,21 +192,26 @@ async function getMpesaAccessToken(config: MpesaConfig, options: { bypassCache?:
     },
   });
 
-  cachedToken = response.data.access_token;
-  tokenExpiry = Date.now() + Math.max((response.data.expires_in ?? 3600) - 60, 60) * 1000;
+  const token = response.data.access_token;
+  const expiry = Date.now() + Math.max((response.data.expires_in ?? 3600) - 60, 60) * 1000;
+  tokenCache.set(cacheKey, { token, expiry });
 
-  return cachedToken;
+  return token;
 }
 
-export function clearMpesaTokenCache() {
-  cachedToken = '';
-  tokenExpiry = 0;
+export function clearMpesaTokenCache(businessId?: string | null) {
+  if (businessId) {
+    tokenCache.delete(getCacheKey(businessId));
+    return;
+  }
+
+  tokenCache.clear();
 }
 
-export async function checkMpesaConnection() {
+export async function checkMpesaConnection(businessId?: string | null) {
   try {
-    const config = getMpesaConfig();
-    await getMpesaAccessToken(config, { bypassCache: true });
+    const config = await getMpesaConfig(businessId);
+    await getMpesaAccessToken(config, { bypassCache: true, cacheKey: getCacheKey(businessId) });
     return true;
   } catch (error) {
     console.warn('[M-PESA] Connection probe failed', error);
@@ -198,9 +219,9 @@ export async function checkMpesaConnection() {
   }
 }
 
-export async function initiateDarajaStkPush(payerPhone: string, amount: number, reference: string) {
-  const config = getMpesaConfig();
-  const token = await getMpesaAccessToken(config);
+export async function initiateDarajaStkPush(payerPhone: string, amount: number, reference: string, businessId?: string | null) {
+  const config = await getMpesaConfig(businessId);
+  const token = await getMpesaAccessToken(config, { cacheKey: getCacheKey(businessId) });
   const timestamp = createTimestamp();
   const phoneNumber = cleanPhone(payerPhone);
   const password = Buffer.from(`${config.businessShortCode}${config.passkey}${timestamp}`).toString('base64');

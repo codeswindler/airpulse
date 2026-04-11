@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
+import { clearAirPulseTokenCache, clearTupayBalanceCache } from '@/lib/airpulseClient';
+import { clearSmsBalanceCache } from '@/lib/smsClient';
+import { clearMpesaTokenCache } from '@/lib/mpesaClient';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
@@ -130,6 +133,11 @@ export async function PATCH(
         },
       },
     });
+
+    clearAirPulseTokenCache(id);
+    clearTupayBalanceCache(id);
+    clearSmsBalanceCache(id);
+    clearMpesaTokenCache(id);
 
     return NextResponse.json({ business: updatedBusiness });
   } catch (error) {

@@ -53,7 +53,8 @@ export async function POST(req: NextRequest) {
     const inputRaw = getStringParam(params, ['text', 'INPUT', 'ussd_string', 'command']);
 
     logIncomingUssdRequest('POST', provider, sessionId, phoneNumber, params);
-    const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw);
+    const serviceCode = getStringParam(params, ['service_code', 'serviceCode', 'shortcode']);
+    const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw, serviceCode);
     
     if (provider === 'moneymaker') {
       return new Response(responseText, {
@@ -88,7 +89,8 @@ export async function GET(req: NextRequest) {
     const inputRaw = getStringParam(params, ['text', 'INPUT', 'ussd_string', 'command']);
 
     logIncomingUssdRequest('GET', provider, sessionId, phoneNumber, params);
-    const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw);
+    const serviceCode = getStringParam(params, ['service_code', 'serviceCode', 'shortcode']);
+    const responseText = await processUssdRequest(sessionId, phoneNumber, inputRaw, serviceCode);
     
     if (provider === 'moneymaker') {
       return new Response(responseText, {

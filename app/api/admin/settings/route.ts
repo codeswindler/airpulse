@@ -8,6 +8,14 @@ const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_
 
 export async function GET(req: NextRequest) {
   try {
+    const token = req.cookies.get('admin_session')?.value;
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    if (payload.role !== 'SUPERADMIN') {
+      return NextResponse.json({ error: 'Permission denied. Superadmin required.' }, { status: 403 });
+    }
+
     const settings = await prisma.systemSetting.findMany();
     const config: Record<string, string> = {};
     settings.forEach(s => { config[s.key] = s.value; });

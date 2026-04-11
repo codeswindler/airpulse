@@ -123,6 +123,7 @@ async function handleWebhook(req: NextRequest) {
             stage: 'delivered',
             targetPhone: tx.targetPhone,
             transactionId: tx.transactionId,
+            businessId: tx.businessId,
           });
           nextProviderReference = buildProviderReference(nextProviderReference, 'sms:delivered');
         } catch (error) {
@@ -152,6 +153,7 @@ async function handleWebhook(req: NextRequest) {
             stage: 'pending',
             targetPhone: tx.targetPhone,
             transactionId: tx.transactionId,
+            businessId: tx.businessId,
           });
           nextProviderReference = buildProviderReference(nextProviderReference, 'sms:pending');
         } catch (error) {
@@ -180,8 +182,11 @@ async function handleWebhook(req: NextRequest) {
       });
 
       if (tx.providerReference?.startsWith('wallet')) {
-        await prisma.user.update({
-          where: { phoneNumber: tx.phoneNumber },
+        await prisma.user.updateMany({
+          where: {
+            phoneNumber: tx.phoneNumber,
+            businessId: tx.businessId ?? null,
+          },
           data: { walletBalance: { increment: tx.amount } }
         });
       }

@@ -8,9 +8,43 @@ function getPrefix(type: 'CON' | 'END'): string {
   return type + ' ';
 }
 
-export async function processUssdRequest(sessionId: string, phoneNumber: string, inputRaw: string) {
+async function resolveBusinessId(serviceCode?: string) {
+  const normalizedServiceCode = serviceCode?.trim();
+
+  if (normalizedServiceCode) {
+    const business = await prisma.business.findFirst({
+      where: {
+        serviceCode: normalizedServiceCode,
+        status: 'ACTIVE',
+      },
+    });
+
+    if (business) {
+      return business.id;
+    }
+  }
+
+  const fallbackBusiness = await prisma.business.findFirst({
+    where: { status: 'ACTIVE' },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  return fallbackBusiness?.id ?? null;
+}
+
+export async function processUssdRequest(sessionId: string, phoneNumber: string, inputRaw: string, serviceCode?: string) {
   // Normalize input
   const input = normalizeInput(inputRaw);
+  const businessId = await resolveBusinessId(serviceCode);
+
+  if (!businessId) {
+    console.error('[USSD] No active business resolved for request', {
+      sessionId,
+      phoneNumber,
+      serviceCode: serviceCode ?? 'missing',
+    });
+    return `${getPrefix('END')}Service unavailable.`;
+  }
   
   if (input === '00') {
     // Reset to main menu
@@ -22,11 +56,22 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
   }
 
   // Ensure User account/wallet exists & fetch balance
-  const user = await prisma.user.upsert({
-    where: { phoneNumber },
-    update: {},
-    create: { phoneNumber, walletBalance: 0.0 }
+  let user = await prisma.user.findFirst({
+    where: {
+      phoneNumber,
+      businessId,
+    },
   });
+
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        phoneNumber,
+        businessId,
+        walletBalance: 0.0,
+      },
+    });
+  }
   const walletBalance = user.walletBalance;
 
   // Find or create session
@@ -37,8 +82,14 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
       data: {
         sessionId,
         phoneNumber,
-        state: 'MAIN_MENU'
+        state: 'MAIN_MENU',
+        businessId,
       }
+    });
+  } else if (!session.businessId && businessId) {
+    session = await prisma.ussdSession.update({
+      where: { sessionId },
+      data: { businessId },
     });
   }
 
@@ -54,7 +105,7 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
       await updateSession(sessionId, { state: 'ENTER_OTHER_NUMBER' });
       return `${getPrefix('CON')}Enter number you wish to receive amount`;
     } else if (input === '3') {
-      const saved = await prisma.savedPhone.findMany({ where: { phoneNumber }, take: 5 });
+      const saved = await prisma.savedPhone.findMany({ where: { phoneNumber, businessId }, take: 5 });
       if (saved.length === 0) {
         return `${getPrefix('CON')}You have no saved numbers.`;
       }
@@ -95,9 +146,15 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
   if (state === 'SAVE_NUMBER_PROMPT') {
     if (input === '1' && session.targetPhone) {
       await prisma.savedPhone.upsert({
-        where: { phoneNumber_savedNumber: { phoneNumber, savedNumber: session.targetPhone } },
+        where: {
+          businessId_phoneNumber_savedNumber: {
+            businessId,
+            phoneNumber,
+            savedNumber: session.targetPhone,
+          },
+        },
         update: {},
-        create: { phoneNumber, savedNumber: session.targetPhone }
+        create: { phoneNumber, savedNumber: session.targetPhone, businessId }
       });
     }
     await updateSession(sessionId, { state: 'ENTER_AMOUNT_OTHER_NUMBER' });
@@ -106,7 +163,7 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
 
   if (state === 'SHOW_SAVED_NUMBERS') {
     const idx = parseInt(input) - 1;
-    const saved = await prisma.savedPhone.findMany({ where: { phoneNumber }, take: 5 });
+    const saved = await prisma.savedPhone.findMany({ where: { phoneNumber, businessId }, take: 5 });
     if (isNaN(idx) || !saved[idx]) {
       return `${getPrefix('CON')}Invalid selection.`;
     }
@@ -120,15 +177,15 @@ export async function processUssdRequest(sessionId: string, phoneNumber: string,
     
     if (isWalletEligible) {
       if (input === '1') {
-        triggerWalletPayment(phoneNumber, session.targetPhone!, amount, sessionId);
+        triggerWalletPayment(phoneNumber, session.targetPhone!, amount, sessionId, businessId);
         return `${getPrefix('END')}processing wallet payment... Ksh ${amount} charged.`;
       } else if (input === '2') {
-        triggerStkPush(phoneNumber, session.targetPhone!, amount, sessionId);
+        triggerStkPush(phoneNumber, session.targetPhone!, amount, sessionId, businessId);
         return `${getPrefix('END')}processing M-Pesa... Please check your phone for the PIN prompt.`;
       }
     } else {
       if (input === '1') {
-        triggerStkPush(phoneNumber, session.targetPhone!, amount, sessionId);
+        triggerStkPush(phoneNumber, session.targetPhone!, amount, sessionId, businessId);
         return `${getPrefix('END')}processing M-Pesa... Please check your phone for the PIN prompt.`;
       }
     }
@@ -156,17 +213,18 @@ async function updateSession(sessionId: string, data: any) {
   await prisma.ussdSession.update({ where: { sessionId }, data });
 }
 
-function triggerStkPush(payerPhone: string, targetPhone: string, amount: number, sessionId: string) {
+function triggerStkPush(payerPhone: string, targetPhone: string, amount: number, sessionId: string, businessId: string | null) {
   console.log('[USSD] Triggering STK push', {
     sessionId,
     payerPhone,
     targetPhone,
     amount,
+    businessId: businessId || 'missing',
   });
 
   fetch(`${process.env.APP_URL || 'https://airpulse.theleasemaster.com'}/api/internal/stkpush`, {
     method: 'POST',
-    body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId }),
+    body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId, businessId }),
     headers: { 'Content-Type': 'application/json' }
   })
     .then(async (response) => {
@@ -183,17 +241,18 @@ function triggerStkPush(payerPhone: string, targetPhone: string, amount: number,
     });
 }
 
-function triggerWalletPayment(payerPhone: string, targetPhone: string, amount: number, sessionId: string) {
+function triggerWalletPayment(payerPhone: string, targetPhone: string, amount: number, sessionId: string, businessId: string | null) {
   console.log('[USSD] Triggering wallet payment', {
     sessionId,
     payerPhone,
     targetPhone,
     amount,
+    businessId: businessId || 'missing',
   });
 
   fetch(`${process.env.APP_URL || 'https://airpulse.theleasemaster.com'}/api/internal/wallet-pay`, {
     method: 'POST',
-    body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId }),
+    body: JSON.stringify({ payerPhone, targetPhone, amount, sessionId, businessId }),
     headers: { 'Content-Type': 'application/json' }
   })
     .then(async (response) => {

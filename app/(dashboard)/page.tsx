@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma';
 import DashboardChart from '@/components/DashboardChart';
 import GrowthFilterMenu from '@/components/GrowthFilterMenu';
 import StatusPill from '@/components/StatusPill';
+import { resolveAdminContextFromCookies } from '@/lib/adminContext';
 import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/transactionDisplay';
 import { getTupayBalance } from '@/lib/airpulseClient';
 import {
@@ -53,21 +54,25 @@ export default async function Dashboard({
 }: {
   searchParams?: Promise<{ period?: string }>;
 }) {
+  const { selectedBusinessId } = await resolveAdminContextFromCookies();
   const now = new Date();
   const resolvedSearchParams = await searchParams;
   const period = resolveDashboardPeriod(resolvedSearchParams?.period, now);
   const currentDateFilter = buildDateRangeFilter(period.currentStart, period.currentEnd);
   const previousDateFilter = buildDateRangeFilter(period.previousStart, period.previousEnd);
   const currentTransactionWhere = {
+    businessId: selectedBusinessId ?? undefined,
     createdAt: currentDateFilter,
   };
 
   const currentCompletedWhere = {
+    businessId: selectedBusinessId ?? undefined,
     status: { in: [...MPESA_VERIFIED_STATUSES] },
     createdAt: currentDateFilter,
   };
 
   const previousCompletedWhere = {
+    businessId: selectedBusinessId ?? undefined,
     status: { in: [...MPESA_VERIFIED_STATUSES] },
     createdAt: previousDateFilter,
   };
@@ -107,15 +112,15 @@ export default async function Dashboard({
       select: { amount: true, createdAt: true },
       orderBy: { createdAt: 'asc' },
     }),
-    getTupayBalance().catch((error) => {
+    getTupayBalance(selectedBusinessId).catch((error) => {
       console.warn('[TUPAY] Balance lookup failed', error);
       return null;
     }),
-    checkSmsConnection().catch((error) => {
+    checkSmsConnection(selectedBusinessId).catch((error) => {
       console.warn('[SMS] Health probe failed', error);
       return false;
     }),
-    checkMpesaConnection().catch((error) => {
+    checkMpesaConnection(selectedBusinessId).catch((error) => {
       console.warn('[M-PESA] Health probe failed', error);
       return false;
     }),

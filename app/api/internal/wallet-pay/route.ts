@@ -6,10 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(req: NextRequest) {
   try {
-    const { payerPhone, targetPhone, amount, sessionId } = await req.json();
+    const { payerPhone, targetPhone, amount, sessionId, businessId: rawBusinessId } = await req.json();
+    const businessId = typeof rawBusinessId === 'string' && rawBusinessId.trim() ? rawBusinessId.trim() : null;
 
     // 1. Transactional Update: Deduct balance
-    const user = await prisma.user.findUnique({ where: { phoneNumber: payerPhone } });
+    const user = await prisma.user.findFirst({ where: { phoneNumber: payerPhone, businessId } });
     
     if (!user || user.walletBalance < amount) {
       return NextResponse.json({ error: 'Insufficient funds' }, { status: 400 });
@@ -20,11 +21,12 @@ export async function POST(req: NextRequest) {
     // Start database transaction
     await prisma.$transaction([
       prisma.user.update({
-        where: { phoneNumber: payerPhone },
+        where: { id: user.id },
         data: { walletBalance: { decrement: amount } }
       }),
       prisma.transaction.create({
         data: {
+          businessId,
           transactionId: txId,
           phoneNumber: payerPhone,
           targetPhone,
@@ -38,13 +40,13 @@ export async function POST(req: NextRequest) {
     let airtimeRes;
 
     try {
-      airtimeRes = await buyAirtimeFromBalance(targetPhone, amount, txId);
+      airtimeRes = await buyAirtimeFromBalance(targetPhone, amount, txId, businessId);
     } catch (airtimeError) {
       console.error('Wallet Airtime Fulfillment Error:', airtimeError);
 
       await prisma.$transaction([
         prisma.user.update({
-          where: { phoneNumber: payerPhone },
+          where: { id: user.id },
           data: { walletBalance: { increment: amount } }
         }),
         prisma.transaction.update({
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
           stage: 'delivered',
           targetPhone,
           transactionId: txId,
+          businessId,
         });
         nextProviderReference = `${nextProviderReference}|sms:delivered`;
       } catch (error) {
@@ -92,6 +95,7 @@ export async function POST(req: NextRequest) {
           stage: 'pending',
           targetPhone,
           transactionId: txId,
+          businessId,
         });
         nextProviderReference = `${nextProviderReference}|sms:pending`;
       } catch (error) {
@@ -110,7 +114,7 @@ export async function POST(req: NextRequest) {
       // Refund if API fails immediately
       await prisma.$transaction([
         prisma.user.update({
-          where: { phoneNumber: payerPhone },
+          where: { id: user.id },
           data: { walletBalance: { increment: amount } }
         }),
         prisma.transaction.update({

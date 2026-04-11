@@ -263,6 +263,19 @@ export default function BusinessesPage() {
     return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>Loading businesses...</div>;
   }
 
+  if (role !== 'SUPERADMIN') {
+    return (
+      <div className="dashboard-scroll">
+        <div className="card" style={{ marginTop: 24, padding: 24 }}>
+          <h1 style={{ marginTop: 0 }}>Access restricted</h1>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Business management is available to superadmins only.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-scroll">
       <div className="dashboard-header">

@@ -18,11 +18,11 @@ async function main() {
 
   const coreBusiness = await prisma.business.create({
     data: {
-      name: 'AirPulse Core',
-      slug: 'airpulse-core',
-      description: 'Primary platform tenant for the current AirPulse deployment.',
+      name: 'NASTEC TECHNOLOGIES',
+      slug: 'nastec-technologies',
+      description: 'Primary tenant account for the current AirPulse deployment.',
       status: 'ACTIVE',
-      ownerName: 'AirPulse Platform',
+      ownerName: 'NASTEC TECHNOLOGIES',
     },
   });
 
@@ -34,7 +34,6 @@ async function main() {
       password: hashedPassword,
       name: 'Super Admin',
       role: 'SUPERADMIN',
-      businessId: coreBusiness.id,
     }
   });
   console.log('Created Superadmin: admin@airpulse.svc / Admin@123!');

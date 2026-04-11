@@ -3,19 +3,24 @@ import { prisma } from '@/lib/prisma';
 import SearchBar from '@/components/SearchBar';
 import ExportCSV from '@/components/ExportCSV';
 import TopUpButton from '@/components/TopUpButton';
+import { resolveAdminContextFromCookies } from '@/lib/adminContext';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CustomersWalletsPage({ searchParams }: { searchParams: { q?: string } }) {
+  const { selectedBusinessId } = await resolveAdminContextFromCookies();
   const query = searchParams.q || '';
   
   const users = await prisma.user.findMany({ 
-    where: query ? {
-      OR: [
-        { phoneNumber: { contains: query } },
-        { id: { contains: query } }
-      ]
-    } : undefined,
+    where: {
+      businessId: selectedBusinessId ?? undefined,
+      ...(query ? {
+        OR: [
+          { phoneNumber: { contains: query } },
+          { id: { contains: query } }
+        ]
+      } : {}),
+    },
     orderBy: { createdAt: 'desc' }
   });
 
@@ -60,7 +65,7 @@ export default async function CustomersWalletsPage({ searchParams }: { searchPar
                 </td>
                 <td data-label="Joined Date" style={{ padding: '16px 8px' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
                 <td data-label="Admin Actions" style={{ padding: '16px 8px', textAlign: 'right' }}>
-                   <TopUpButton phoneNumber={u.phoneNumber} />
+                   <TopUpButton phoneNumber={u.phoneNumber} businessId={selectedBusinessId} />
                 </td>
               </tr>
             ))}

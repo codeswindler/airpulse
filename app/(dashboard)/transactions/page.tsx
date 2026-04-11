@@ -3,22 +3,27 @@ import { prisma } from '@/lib/prisma';
 import SearchBar from '@/components/SearchBar';
 import ExportCSV from '@/components/ExportCSV';
 import StatusPill from '@/components/StatusPill';
+import { resolveAdminContextFromCookies } from '@/lib/adminContext';
 import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/transactionDisplay';
 
 export const dynamic = 'force-dynamic';
 
 export default async function TransactionsPage({ searchParams }: { searchParams: { q?: string } }) {
+  const { selectedBusinessId } = await resolveAdminContextFromCookies();
   const query = searchParams.q || '';
   
   const transactions = await prisma.transaction.findMany({ 
-    where: query ? {
+    where: {
+      businessId: selectedBusinessId ?? undefined,
+      ...(query ? {
       OR: [
         { phoneNumber: { contains: query } },
         { targetPhone: { contains: query } },
         { status: { contains: query } },
         { transactionId: { contains: query } }
       ]
-    } : undefined,
+    } : {}),
+    },
     orderBy: { createdAt: 'desc' }
   });
 

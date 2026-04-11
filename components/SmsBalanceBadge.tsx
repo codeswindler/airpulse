@@ -3,16 +3,28 @@
 import { useState, useEffect } from 'react';
 import { Mail } from 'lucide-react';
 
-export default function SmsBalanceBadge() {
+type Props = {
+  businessId?: string | null;
+};
+
+export default function SmsBalanceBadge({ businessId }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchBalance = async () => {
       try {
-        const res = await fetch('/api/admin/sms-balance', { cache: 'no-store' });
+        const url = businessId
+          ? `/api/admin/sms-balance?businessId=${encodeURIComponent(businessId)}`
+          : '/api/admin/sms-balance';
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) {
+          setBalance(null);
+          return;
+        }
         const data = await res.json();
-        setBalance(data.balance);
+        setBalance(typeof data.balance === 'number' ? data.balance : null);
       } catch (err) {
+        setBalance(null);
         console.error('Failed to fetch SMS balance');
       }
     };
@@ -30,7 +42,7 @@ export default function SmsBalanceBadge() {
       clearInterval(interval);
       window.removeEventListener('settings-updated', handleSettingsUpdated);
     };
-  }, []);
+  }, [businessId]);
 
   if (balance === null) return null;
 

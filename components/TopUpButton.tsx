@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function TopUpButton({ phoneNumber }: { phoneNumber: string }) {
+export default function TopUpButton({ phoneNumber, businessId }: { phoneNumber: string; businessId?: string | null }) {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -16,7 +16,7 @@ export default function TopUpButton({ phoneNumber }: { phoneNumber: string }) {
       const res = await fetch('/api/admin/wallet-topup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber, amount: parseFloat(amount) })
+        body: JSON.stringify({ phoneNumber, amount: parseFloat(amount), businessId })
       });
 
       if (res.ok) {

@@ -21,7 +21,12 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
+    const businessFilter = auth.role === 'SUPERADMIN'
+      ? {}
+      : { businessId: auth.businessId ?? null };
+
     const admins = await prisma.admin.findMany({
+      where: businessFilter,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

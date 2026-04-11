@@ -1,14 +1,18 @@
 import { prisma } from './prisma';
 import axios from 'axios';
+import { getBusinessIntegrationSnapshot } from './businessIntegrations';
 
-// Cache in-memory for 5 minutes
-let cachedBalance: number | null = null;
-let lastFetched: number = 0;
+// Cache in-memory for 5 minutes, keyed by business context.
+const cachedBalance = new Map<string, { value: number; fetchedAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
 
-export function clearSmsBalanceCache() {
-  cachedBalance = null;
-  lastFetched = 0;
+export function clearSmsBalanceCache(businessId?: string | null) {
+  if (businessId) {
+    cachedBalance.delete(businessId.trim() || 'global');
+    return;
+  }
+
+  cachedBalance.clear();
 }
 
 type SmsProvider = 'advanta' | 'onfon';
@@ -59,31 +63,33 @@ function formatAmount(amount: number) {
   return Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
 }
 
-async function getSmsSettings(): Promise<SmsSettings> {
+async function getSmsSettings(businessId?: string | null): Promise<SmsSettings> {
+  const business = await getBusinessIntegrationSnapshot(businessId);
   const settings = await prisma.systemSetting.findMany();
   const find = (key: string) => settings.find((setting) => setting.key === key)?.value;
 
   return {
-    provider: firstNonEmpty(find('sms_provider')) as SmsProvider | undefined,
-    businessName: firstNonEmpty(find('airpulse_business_name')) ?? 'AirPulse',
-    advantaApiKey: firstNonEmpty(find('advanta_api_key')),
-    advantaPartnerId: firstNonEmpty(find('advanta_partner_id')),
-    advantaSenderId: firstNonEmpty(find('advanta_sender_id')),
-    onfonAccessKey: firstNonEmpty(find('onfon_access_key')),
-    onfonApiKey: firstNonEmpty(find('onfon_api_key')),
-    onfonClientId: firstNonEmpty(find('onfon_client_id')),
-    onfonSenderId: firstNonEmpty(find('onfon_sender_id')),
+    provider: (firstNonEmpty(business?.smsProvider, find('sms_provider')) as SmsProvider | undefined),
+    businessName: firstNonEmpty(business?.name, find('airpulse_business_name')) ?? 'AirPulse',
+    advantaApiKey: firstNonEmpty(find('advanta_api_key'), business?.smsApiKey),
+    advantaPartnerId: firstNonEmpty(find('advanta_partner_id'), business?.smsPartnerId),
+    advantaSenderId: firstNonEmpty(find('advanta_sender_id'), business?.smsSenderId),
+    onfonAccessKey: firstNonEmpty(find('onfon_access_key'), business?.smsAccessKey),
+    onfonApiKey: firstNonEmpty(find('onfon_api_key'), business?.smsApiKey),
+    onfonClientId: firstNonEmpty(find('onfon_client_id'), business?.smsClientId),
+    onfonSenderId: firstNonEmpty(find('onfon_sender_id'), business?.smsSenderId),
   };
 }
 
-async function fetchSmsBalance() {
+async function fetchSmsBalance(businessId?: string | null) {
   const settings = await prisma.systemSetting.findMany();
+  const business = await getBusinessIntegrationSnapshot(businessId);
   const find = (key: string) => settings.find((setting) => setting.key === key)?.value;
-  const provider = find('sms_provider');
+  const provider = business?.smsProvider || find('sms_provider');
 
   if (provider === 'advanta') {
-    const apiKey = find('advanta_api_key');
-    const partnerId = find('advanta_partner_id');
+    const apiKey = business?.smsApiKey || find('advanta_api_key');
+    const partnerId = business?.smsPartnerId || find('advanta_partner_id');
 
     if (!apiKey || !partnerId) {
       throw new Error('Advanta SMS credentials incomplete');
@@ -102,9 +108,9 @@ async function fetchSmsBalance() {
   }
 
   if (provider === 'onfon') {
-    const apiKey = find('onfon_api_key');
-    const clientId = find('onfon_client_id');
-    const accessKey = find('onfon_access_key');
+    const apiKey = business?.smsApiKey || find('onfon_api_key');
+    const clientId = business?.smsClientId || find('onfon_client_id');
+    const accessKey = business?.smsAccessKey || find('onfon_access_key');
 
     if (!apiKey || !clientId || !accessKey) {
       throw new Error('Onfon SMS credentials incomplete');
@@ -126,8 +132,8 @@ async function fetchSmsBalance() {
   throw new Error('No SMS provider configured');
 }
 
-export async function sendSms(phoneNumber: string, message: string) {
-  const settings = await getSmsSettings();
+export async function sendSms(phoneNumber: string, message: string, businessId?: string | null) {
+  const settings = await getSmsSettings(businessId);
   const provider = settings.provider;
   const mobile = cleanPhone(phoneNumber);
 
@@ -205,8 +211,9 @@ export async function sendAirtimeNotification(params: {
   stage: AirtimeNotificationStage;
   targetPhone: string;
   transactionId: string;
+  businessId?: string | null;
 }) {
-  const settings = await getSmsSettings();
+  const settings = await getSmsSettings(params.businessId);
   const amountText = formatAmount(params.amount);
   const businessName = settings.businessName;
   let message = '';
@@ -219,7 +226,7 @@ export async function sendAirtimeNotification(params: {
     message = `${businessName}: Airtime request of KES ${amountText} to ${cleanPhone(params.targetPhone)} failed. Ref ${params.transactionId}.`;
   }
 
-  const result = await sendSms(params.payerPhone, message);
+  const result = await sendSms(params.payerPhone, message, params.businessId);
 
   if (result) {
     console.log('[SMS] Airtime notification sent', {
@@ -233,27 +240,28 @@ export async function sendAirtimeNotification(params: {
   return result;
 }
 
-export async function getSmsBalance() {
+export async function getSmsBalance(businessId?: string | null) {
   const now = Date.now();
-  if (cachedBalance !== null && (now - lastFetched < CACHE_TTL)) {
-    return cachedBalance;
+  const cacheKey = businessId?.trim() || 'global';
+  const cached = cachedBalance.get(cacheKey);
+  if (cached && (now - cached.fetchedAt < CACHE_TTL)) {
+    return cached.value;
   }
 
   try {
-    const balance = await fetchSmsBalance();
-    cachedBalance = balance;
-    lastFetched = now;
+    const balance = await fetchSmsBalance(businessId);
+    cachedBalance.set(cacheKey, { value: balance, fetchedAt: now });
     return balance;
 
   } catch (error) {
     console.error('Fetch SMS Balance Error:', error);
-    return cachedBalance ?? 0;
+    return cached?.value ?? 0;
   }
 }
 
-export async function checkSmsConnection() {
+export async function checkSmsConnection(businessId?: string | null) {
   try {
-    await fetchSmsBalance();
+    await fetchSmsBalance(businessId);
     return true;
   } catch (error) {
     console.warn('[SMS] Connection probe failed', error);

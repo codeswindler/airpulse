@@ -1,14 +1,9 @@
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from './prisma';
+import { getBusinessIntegrationSnapshot } from './businessIntegrations';
 
 const baseUrl = 'https://api.tupay.africa/v1';
-
-let cachedToken = '';
-let tokenExpiry = 0;
-let cachedBalance: { amount: number; currency: string } | null = null;
-let balanceExpiry = 0;
-const BALANCE_CACHE_TTL = 60 * 1000;
 
 type AirPulseConfig = {
   apiKey?: string;
@@ -16,6 +11,21 @@ type AirPulseConfig = {
   secret?: string;
   uuid?: string;
 };
+
+type TokenCacheEntry = {
+  token: string;
+  expiry: number;
+};
+
+type BalanceCacheEntry = {
+  amount: number;
+  currency: string;
+  expiry: number;
+};
+
+const tokenCache = new Map<string, TokenCacheEntry>();
+const balanceCache = new Map<string, BalanceCacheEntry>();
+const BALANCE_CACHE_TTL = 60 * 1000;
 
 function firstNonEmpty(...values: Array<string | undefined | null>) {
   for (const value of values) {
@@ -27,7 +37,11 @@ function firstNonEmpty(...values: Array<string | undefined | null>) {
   return undefined;
 }
 
-async function getAirPulseConfig(): Promise<AirPulseConfig> {
+function getCacheKey(businessId?: string | null) {
+  return businessId?.trim() || 'global';
+}
+
+async function getAirPulseConfig(businessId?: string | null): Promise<AirPulseConfig> {
   const envConfig: AirPulseConfig = {
     uuid: firstNonEmpty(process.env.AIRPULSE_CONSUMER_UUID, process.env.AIRPULSE_UUID),
     apiKey: firstNonEmpty(process.env.AIRPULSE_API_KEY),
@@ -35,7 +49,9 @@ async function getAirPulseConfig(): Promise<AirPulseConfig> {
     businessName: firstNonEmpty(process.env.AIRPULSE_BUSINESS_NAME),
   };
 
-  if (envConfig.uuid && envConfig.apiKey && envConfig.secret && envConfig.businessName) {
+  const business = await getBusinessIntegrationSnapshot(businessId);
+
+  if (envConfig.uuid && envConfig.apiKey && envConfig.secret && envConfig.businessName && !business) {
     return envConfig;
   }
 
@@ -50,19 +66,38 @@ async function getAirPulseConfig(): Promise<AirPulseConfig> {
   const settingMap = new Map(settings.map((setting) => [setting.key, setting.value]));
 
   return {
-    uuid: envConfig.uuid ?? firstNonEmpty(settingMap.get('airpulse_uuid')),
-    apiKey: envConfig.apiKey ?? firstNonEmpty(settingMap.get('airpulse_api_key')),
-    secret: envConfig.secret ?? firstNonEmpty(settingMap.get('airpulse_secret')),
-    businessName: envConfig.businessName ?? firstNonEmpty(settingMap.get('airpulse_business_name')),
+    uuid: firstNonEmpty(
+      business?.tupayUuid,
+      envConfig.uuid,
+      settingMap.get('airpulse_uuid'),
+    ),
+    apiKey: firstNonEmpty(
+      business?.tupayApiKey,
+      envConfig.apiKey,
+      settingMap.get('airpulse_api_key'),
+    ),
+    secret: firstNonEmpty(
+      business?.tupaySecret,
+      envConfig.secret,
+      settingMap.get('airpulse_secret'),
+    ),
+    businessName: firstNonEmpty(
+      business?.name,
+      envConfig.businessName,
+      settingMap.get('airpulse_business_name'),
+    ),
   };
 }
 
-export async function getAirPulseToken(config?: AirPulseConfig) {
-  if (cachedToken && Date.now() < tokenExpiry) {
-    return cachedToken;
+export async function getAirPulseToken(config?: AirPulseConfig, businessId?: string | null) {
+  const cacheKey = getCacheKey(businessId);
+  const cachedEntry = tokenCache.get(cacheKey);
+
+  if (cachedEntry && Date.now() < cachedEntry.expiry) {
+    return cachedEntry.token;
   }
 
-  const resolvedConfig = config ?? await getAirPulseConfig();
+  const resolvedConfig = config ?? await getAirPulseConfig(businessId);
   const authStrategies = [
     resolvedConfig.apiKey && resolvedConfig.secret
       ? {
@@ -92,9 +127,10 @@ export async function getAirPulseToken(config?: AirPulseConfig) {
         },
       });
 
-      cachedToken = response.data.access_token;
-      tokenExpiry = Date.now() + Math.max((response.data.expires_in ?? 3600) - 60, 60) * 1000;
-      return cachedToken;
+      const token = response.data.access_token;
+      const expiry = Date.now() + Math.max((response.data.expires_in ?? 3600) - 60, 60) * 1000;
+      tokenCache.set(cacheKey, { token, expiry });
+      return token;
     } catch (error) {
       lastError = error;
     }
@@ -103,19 +139,27 @@ export async function getAirPulseToken(config?: AirPulseConfig) {
   throw lastError ?? new Error('Unable to authenticate with Tupay');
 }
 
-export function clearAirPulseTokenCache() {
-  cachedToken = '';
-  tokenExpiry = 0;
+export function clearAirPulseTokenCache(businessId?: string | null) {
+  if (businessId) {
+    tokenCache.delete(getCacheKey(businessId));
+    return;
+  }
+
+  tokenCache.clear();
 }
 
-export function clearTupayBalanceCache() {
-  cachedBalance = null;
-  balanceExpiry = 0;
+export function clearTupayBalanceCache(businessId?: string | null) {
+  if (businessId) {
+    balanceCache.delete(getCacheKey(businessId));
+    return;
+  }
+
+  balanceCache.clear();
 }
 
-export async function buyAirtimeFromBalance(targetPhone: string, amount: number, reference: string) {
-  const config = await getAirPulseConfig();
-  const token = await getAirPulseToken(config);
+export async function buyAirtimeFromBalance(targetPhone: string, amount: number, reference: string, businessId?: string | null) {
+  const config = await getAirPulseConfig(businessId);
+  const token = await getAirPulseToken(config, businessId);
   const account = cleanPhone(targetPhone);
   const service = getNetwork(targetPhone);
   const idempotencyKey = uuidv4();
@@ -167,14 +211,20 @@ export async function buyAirtimeFromBalance(targetPhone: string, amount: number,
   throw lastError ?? new Error('Unable to fulfill airtime with Tupay');
 }
 
-export async function getTupayBalance() {
+export async function getTupayBalance(businessId?: string | null) {
   const now = Date.now();
-  if (cachedBalance && now < balanceExpiry) {
-    return cachedBalance;
+  const cacheKey = getCacheKey(businessId);
+  const cachedEntry = balanceCache.get(cacheKey);
+
+  if (cachedEntry && now < cachedEntry.expiry) {
+    return {
+      amount: cachedEntry.amount,
+      currency: cachedEntry.currency,
+    };
   }
 
-  const config = await getAirPulseConfig();
-  const token = await getAirPulseToken(config);
+  const config = await getAirPulseConfig(businessId);
+  const token = await getAirPulseToken(config, businessId);
   const attempts = ['/balance', '/b2b/balance'];
   let lastError: unknown;
 
@@ -199,9 +249,13 @@ export async function getTupayBalance() {
         throw new Error('Tupay balance response missing amount');
       }
 
-      cachedBalance = { amount, currency };
-      balanceExpiry = now + BALANCE_CACHE_TTL;
-      return cachedBalance;
+      balanceCache.set(cacheKey, {
+        amount,
+        currency,
+        expiry: now + BALANCE_CACHE_TTL,
+      });
+
+      return { amount, currency };
     } catch (error) {
       lastError = error;
     }
@@ -218,9 +272,9 @@ export function isTupayPendingStatus(status: unknown) {
   return [0, 3, 31, 100, 101].includes(Number(status));
 }
 
-export async function getTupayTransactionStatus(transactionId: string) {
-  const config = await getAirPulseConfig();
-  const token = await getAirPulseToken(config);
+export async function getTupayTransactionStatus(transactionId: string, businessId?: string | null) {
+  const config = await getAirPulseConfig(businessId);
+  const token = await getAirPulseToken(config, businessId);
   const attempts = [`/status/${encodeURIComponent(transactionId)}`, `/b2b/status/${encodeURIComponent(transactionId)}`];
   let lastError: unknown;
 
@@ -242,7 +296,6 @@ export async function getTupayTransactionStatus(transactionId: string) {
 }
 
 function cleanPhone(phone: string) {
-  // Ensure starts with 254
   let p = phone.trim();
   if (p.startsWith('+')) p = p.slice(1);
   if (p.startsWith('0')) p = '254' + p.slice(1);
@@ -251,10 +304,9 @@ function cleanPhone(phone: string) {
 }
 
 function getNetwork(phone: string) {
-  // Simple heuristic, real implementation requires HLR lookup or strict prefix mapping
   const p = cleanPhone(phone);
   if (p.match(/^254(70|71|72|79|74|11)/)) return 'safaricom';
   if (p.match(/^254(73|78)/)) return 'airtel';
   if (p.match(/^254(77)/)) return 'telkom';
-  return 'safaricom'; // Default
+  return 'safaricom';
 }

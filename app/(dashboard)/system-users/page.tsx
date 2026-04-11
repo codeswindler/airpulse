@@ -10,6 +10,7 @@ export default function SystemUsersPage() {
   const [showModal, setShowModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'MODERATOR', businessId: '' });
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -17,14 +18,19 @@ export default function SystemUsersPage() {
 
   const fetchData = async () => {
     try {
-      const [adminsRes, businessesRes] = await Promise.all([
+      const [adminsRes, businessesRes, meRes] = await Promise.all([
         fetch('/api/admin/system-users'),
         fetch('/api/admin/businesses'),
+        fetch('/api/admin/me'),
       ]);
       const adminsData = await adminsRes.json();
       const businessesData = await businessesRes.json();
+      const meData = meRes.ok ? await meRes.json() : null;
       setAdmins(adminsData.admins || []);
       setBusinesses(businessesData.businesses || []);
+      if (meData) {
+        setRole(meData.role || null);
+      }
     } catch (err) {
       console.error('Failed to fetch access data', err);
     } finally {
@@ -91,6 +97,7 @@ export default function SystemUsersPage() {
   };
 
   if (loading) return <div style={{ padding: '40px', color: 'var(--text-secondary)' }}>Loading access control...</div>;
+  const canManage = role === 'SUPERADMIN';
 
   return (
     <div className="dashboard-scroll">
@@ -100,13 +107,15 @@ export default function SystemUsersPage() {
           <p>Manage administrative roles and dashboard access levels.</p>
         </div>
         <div className="action-buttons">
-          <button 
-            className="btn-primary" 
-            onClick={() => setShowModal(true)}
-            style={{ backgroundColor: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: '#fff' }}
-          >
-            + Invite Admin
-          </button>
+          {canManage ? (
+            <button 
+              className="btn-primary" 
+              onClick={() => setShowModal(true)}
+              style={{ backgroundColor: 'var(--accent-color)', borderColor: 'var(--accent-color)', color: '#fff' }}
+            >
+              + Invite Admin
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -144,24 +153,28 @@ export default function SystemUsersPage() {
                 <td data-label="Access Level" style={{ padding: '16px 24px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                      {admin.role === 'SUPERADMIN' ? <ShieldAlert size={14} color="var(--warning-color)" /> : <Shield size={14} color="var(--text-muted)" />}
-                     <select 
-                       value={admin.role}
-                       onChange={(e) => handleRoleChange(admin.id, e.target.value)}
-                       style={{ 
-                         backgroundColor: 'transparent', 
-                         color: admin.role === 'SUPERADMIN' ? 'var(--warning-color)' : 'var(--text-primary)',
-                         border: 'none',
-                         fontSize: '13px',
-                         fontWeight: 600,
-                         cursor: 'pointer',
-                         outline: 'none'
-                       }}
-                     >
-                        <option value="SUPERADMIN">Superadmin</option>
-                        <option value="BUSINESS_OWNER">Business Owner</option>
-                        <option value="BUSINESS_STAFF">Business Staff</option>
-                        <option value="MODERATOR">Moderator</option>
-                     </select>
+                     {canManage ? (
+                       <select 
+                         value={admin.role}
+                         onChange={(e) => handleRoleChange(admin.id, e.target.value)}
+                         style={{ 
+                           backgroundColor: 'transparent', 
+                           color: admin.role === 'SUPERADMIN' ? 'var(--warning-color)' : 'var(--text-primary)',
+                           border: 'none',
+                           fontSize: '13px',
+                           fontWeight: 600,
+                           cursor: 'pointer',
+                           outline: 'none'
+                         }}
+                       >
+                          <option value="SUPERADMIN">Superadmin</option>
+                          <option value="BUSINESS_OWNER">Business Owner</option>
+                          <option value="BUSINESS_STAFF">Business Staff</option>
+                          <option value="MODERATOR">Moderator</option>
+                       </select>
+                     ) : (
+                       <span style={{ fontSize: '13px', fontWeight: 600 }}>{admin.role}</span>
+                     )}
                   </div>
                 </td>
                 <td data-label="Last Active" style={{ padding: '16px 24px', color: 'var(--text-secondary)' }}>
@@ -169,12 +182,16 @@ export default function SystemUsersPage() {
                 </td>
                 <td data-label="Actions" style={{ padding: '16px 24px', textAlign: 'right' }}>
                    <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                      <button 
-                        onClick={() => handleDelete(admin.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {canManage ? (
+                        <button 
+                          onClick={() => handleDelete(admin.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--danger-color)', cursor: 'pointer' }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Read only</span>
+                      )}
                    </div>
                 </td>
               </tr>
@@ -197,7 +214,7 @@ export default function SystemUsersPage() {
       </div>
 
       {/* Invite Modal */}
-      {showModal && (
+      {showModal && canManage && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
           backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)',

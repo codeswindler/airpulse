@@ -2,11 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
+import { getCookie, setCookie } from "cookies-next";
 import SmsBalanceBadge from "@/components/SmsBalanceBadge";
+import BusinessSwitcher from "@/components/BusinessSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
 import ProfileDropdown from "@/components/ProfileDropdown";
+import { BUSINESS_CONTEXT_COOKIE } from "@/lib/businessContext";
+
+type BusinessOption = {
+  id: string;
+  name: string;
+  slug: string;
+  serviceCode?: string | null;
+};
 
 export default function DashboardLayout({
   children,
@@ -14,8 +24,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [adminRole, setAdminRole] = useState<string | null>(null);
+  const [adminBusinessId, setAdminBusinessId] = useState<string | null>(null);
+  const [adminBusinessName, setAdminBusinessName] = useState<string | null>(null);
+  const [businesses, setBusinesses] = useState<BusinessOption[]>([]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -24,23 +38,65 @@ export default function DashboardLayout({
   useEffect(() => {
     let active = true;
 
-    const fetchAdminRole = async () => {
+    const fetchAdminMeta = async () => {
       try {
-        const response = await fetch('/api/admin/me', { cache: 'no-store' });
-        if (!response.ok) {
+        const [meResponse, businessesResponse] = await Promise.all([
+          fetch('/api/admin/me', { cache: 'no-store' }),
+          fetch('/api/admin/businesses', { cache: 'no-store' }),
+        ]);
+
+        if (!meResponse.ok) {
           return;
         }
 
-        const data = await response.json();
+        const meData = await meResponse.json();
+        const businessData = businessesResponse.ok ? await businessesResponse.json() : { businesses: [] };
+
+        const nextBusinesses = Array.isArray(businessData.businesses) ? businessData.businesses : [];
+        const cookieBusinessId = getCookie(BUSINESS_CONTEXT_COOKIE);
+        const isSuperAdmin = meData.role === 'SUPERADMIN';
+        const cookieCandidate = typeof cookieBusinessId === 'string' && cookieBusinessId.trim()
+          ? cookieBusinessId.trim()
+          : null;
+        const cookieMatchesTenant = cookieCandidate
+          ? nextBusinesses.some((business: BusinessOption) => business.id === cookieCandidate)
+          : false;
+        const resolvedBusinessId = isSuperAdmin
+          ? (cookieMatchesTenant
+            ? cookieCandidate
+            : meData.businessId || nextBusinesses[0]?.id || null)
+          : (meData.businessId || nextBusinesses[0]?.id || null);
+
         if (active) {
-          setAdminRole(data.role || null);
+          setAdminRole(meData.role || null);
+          setAdminBusinessId(resolvedBusinessId);
+          setAdminBusinessName(
+            nextBusinesses.find((business: BusinessOption) => business.id === resolvedBusinessId)?.name
+              || meData.business?.name
+              || null
+          );
+          setBusinesses(nextBusinesses);
+        }
+
+        const shouldRefresh = isSuperAdmin && cookieBusinessId !== resolvedBusinessId;
+
+        if (resolvedBusinessId) {
+          setCookie(BUSINESS_CONTEXT_COOKIE, resolvedBusinessId, {
+            path: '/',
+            sameSite: 'lax',
+            maxAge: 60 * 60 * 24 * 30,
+          });
+        }
+
+        if (shouldRefresh) {
+          router.refresh();
         }
       } catch (error) {
-        console.warn('[LAYOUT] Failed to load admin role', error);
+        console.warn('[LAYOUT] Failed to load admin metadata', error);
       }
     };
 
-    void fetchAdminRole();
+    void fetchAdminMeta();
 
     return () => {
       active = false;
@@ -123,11 +179,13 @@ export default function DashboardLayout({
               <span>Users (Access)</span>
             </li>
           </Link>
-          <Link href="/settings" style={{ textDecoration: 'none' }}>
-            <li className="sidebar-item">
-              <span>Configurations</span>
-            </li>
-          </Link>
+          {adminRole === 'SUPERADMIN' ? (
+            <Link href="/settings" style={{ textDecoration: 'none' }}>
+              <li className="sidebar-item">
+                <span>Configurations</span>
+              </li>
+            </Link>
+          ) : null}
         </ul>
       </aside>
       
@@ -146,7 +204,13 @@ export default function DashboardLayout({
             <span className="mobile-header-brand">AirPulse</span>
           </div>
           <div className="header-right">
-            <SmsBalanceBadge />
+            <BusinessSwitcher
+              role={adminRole}
+              currentBusinessId={adminBusinessId}
+              currentBusinessName={adminBusinessName}
+              businesses={businesses}
+            />
+            <SmsBalanceBadge businessId={adminBusinessId} />
             <div className="badge-date">Apr 05</div>
             <ThemeToggle />
             <ProfileDropdown />
