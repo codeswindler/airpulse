@@ -8,7 +8,8 @@ import { getSelectedBusinessIdFromRequest } from '@/lib/adminContext';
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
 function getSettingValue(settings: Array<{ key: string; value: string }>, key: string, fallback = '') {
-  return settings.find((setting) => setting.key === key)?.value ?? fallback;
+  const value = settings.find((setting) => setting.key === key)?.value;
+  return typeof value === 'string' && value.trim() !== '' ? value : fallback;
 }
 
 export async function GET(req: NextRequest) {
@@ -38,6 +39,7 @@ export async function GET(req: NextRequest) {
       platformSms: {
         sms_provider: getSettingValue(settings, 'sms_provider', 'advanta'),
         sms_threshold: getSettingValue(settings, 'sms_threshold', '500'),
+        advanta_base_url: getSettingValue(settings, 'advanta_base_url', 'https://quicksms.advantasms.com'),
         advanta_partner_id: getSettingValue(settings, 'advanta_partner_id'),
         advanta_api_key: getSettingValue(settings, 'advanta_api_key'),
         advanta_sender_id: getSettingValue(settings, 'advanta_sender_id'),

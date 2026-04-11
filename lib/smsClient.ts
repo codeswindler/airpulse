@@ -5,6 +5,7 @@ import { getBusinessIntegrationSnapshot } from './businessIntegrations';
 // Cache in-memory for 5 minutes, keyed by business context.
 const cachedBalance = new Map<string, { value: number; fetchedAt: number }>();
 const CACHE_TTL = 5 * 60 * 1000;
+const DEFAULT_ADVANTA_BASE_URL = 'https://quicksms.advantasms.com';
 
 export function clearSmsBalanceCache(businessId?: string | null) {
   if (businessId) {
@@ -20,6 +21,7 @@ type SmsProvider = 'advanta' | 'onfon';
 type SmsSettings = {
   businessName: string;
   provider?: SmsProvider;
+  advantaBaseUrl?: string;
   advantaApiKey?: string;
   advantaPartnerId?: string;
   advantaSenderId?: string;
@@ -63,6 +65,13 @@ function formatAmount(amount: number) {
   return Number.isInteger(amount) ? amount.toString() : amount.toFixed(2);
 }
 
+function buildAdvantaUrl(baseUrl: string | undefined, path: string) {
+  const normalizedBase = firstNonEmpty(baseUrl, DEFAULT_ADVANTA_BASE_URL) || DEFAULT_ADVANTA_BASE_URL;
+  const joinedBase = normalizedBase.endsWith('/') ? normalizedBase : `${normalizedBase}/`;
+  const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+  return new URL(normalizedPath, joinedBase).toString();
+}
+
 async function getSmsSettings(businessId?: string | null): Promise<SmsSettings> {
   const business = await getBusinessIntegrationSnapshot(businessId);
   const settings = await prisma.systemSetting.findMany();
@@ -71,6 +80,7 @@ async function getSmsSettings(businessId?: string | null): Promise<SmsSettings> 
   return {
     provider: (firstNonEmpty(business?.smsProvider, find('sms_provider')) as SmsProvider | undefined),
     businessName: firstNonEmpty(business?.name, find('airpulse_business_name')) ?? 'AirPulse',
+    advantaBaseUrl: firstNonEmpty(find('advanta_base_url'), process.env.ADVANTA_BASE_URL, DEFAULT_ADVANTA_BASE_URL),
     advantaApiKey: firstNonEmpty(find('advanta_api_key'), business?.smsApiKey),
     advantaPartnerId: firstNonEmpty(find('advanta_partner_id'), business?.smsPartnerId),
     advantaSenderId: firstNonEmpty(find('advanta_sender_id'), business?.smsSenderId),
@@ -82,20 +92,18 @@ async function getSmsSettings(businessId?: string | null): Promise<SmsSettings> 
 }
 
 async function fetchSmsBalance(businessId?: string | null) {
-  const settings = await prisma.systemSetting.findMany();
-  const business = await getBusinessIntegrationSnapshot(businessId);
-  const find = (key: string) => settings.find((setting) => setting.key === key)?.value;
-  const provider = business?.smsProvider || find('sms_provider');
+  const settings = await getSmsSettings(businessId);
+  const provider = settings.provider;
 
   if (provider === 'advanta') {
-    const apiKey = business?.smsApiKey || find('advanta_api_key');
-    const partnerId = business?.smsPartnerId || find('advanta_partner_id');
+    const apiKey = settings.advantaApiKey;
+    const partnerId = settings.advantaPartnerId;
 
     if (!apiKey || !partnerId) {
       throw new Error('Advanta SMS credentials incomplete');
     }
 
-    const response = await axios.post('https://quicksms.advantasms.com/api/services/getbalance', {
+    const response = await axios.post(buildAdvantaUrl(settings.advantaBaseUrl, '/api/services/getbalance'), {
       apikey: apiKey,
       partnerID: partnerId,
     });
@@ -108,9 +116,9 @@ async function fetchSmsBalance(businessId?: string | null) {
   }
 
   if (provider === 'onfon') {
-    const apiKey = business?.smsApiKey || find('onfon_api_key');
-    const clientId = business?.smsClientId || find('onfon_client_id');
-    const accessKey = business?.smsAccessKey || find('onfon_access_key');
+    const apiKey = settings.onfonApiKey;
+    const clientId = settings.onfonClientId;
+    const accessKey = settings.onfonAccessKey;
 
     if (!apiKey || !clientId || !accessKey) {
       throw new Error('Onfon SMS credentials incomplete');
@@ -148,7 +156,7 @@ export async function sendSms(phoneNumber: string, message: string, businessId?:
       return null;
     }
 
-    const response = await axios.post('https://quicksms.advantasms.com/api/services/sendsms', {
+    const response = await axios.post(buildAdvantaUrl(settings.advantaBaseUrl, '/api/services/sendsms'), {
       apikey: settings.advantaApiKey,
       partnerID: settings.advantaPartnerId,
       message,

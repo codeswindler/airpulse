@@ -29,6 +29,7 @@ type SharedSettings = {
   platformSms?: {
     sms_provider: string;
     sms_threshold: string;
+    advanta_base_url: string;
     advanta_partner_id: string;
     advanta_api_key: string;
     advanta_sender_id: string;
@@ -53,6 +54,7 @@ type SharedSettings = {
 type SettingsForm = {
   sms_provider: string;
   sms_threshold: string;
+  advanta_base_url: string;
   advanta_partner_id: string;
   advanta_api_key: string;
   advanta_sender_id: string;
@@ -73,6 +75,7 @@ type SettingsForm = {
 const DEFAULT_FORM: SettingsForm = {
   sms_provider: 'advanta',
   sms_threshold: '500',
+  advanta_base_url: 'https://quicksms.advantasms.com',
   advanta_partner_id: '',
   advanta_api_key: '',
   advanta_sender_id: '',
@@ -122,6 +125,7 @@ function mergeForm(settings: SharedSettings | null): SettingsForm {
     ...DEFAULT_FORM,
     sms_provider: normalizeString(settings?.platformSms?.sms_provider, DEFAULT_FORM.sms_provider),
     sms_threshold: normalizeString(settings?.platformSms?.sms_threshold, DEFAULT_FORM.sms_threshold),
+    advanta_base_url: normalizeString(settings?.platformSms?.advanta_base_url, DEFAULT_FORM.advanta_base_url),
     advanta_partner_id: normalizeString(settings?.platformSms?.advanta_partner_id),
     advanta_api_key: normalizeString(settings?.platformSms?.advanta_api_key),
     advanta_sender_id: normalizeString(settings?.platformSms?.advanta_sender_id),
@@ -633,6 +637,15 @@ export default function PlatformSettingsPanel() {
             {smsProvider === 'advanta' ? (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <Field label="Advanta Base URL" help="Use a custom endpoint if your Advanta deployment differs from the default host.">
+                    <input
+                      type="url"
+                      value={form.advanta_base_url}
+                      onChange={(event) => updateForm('advanta_base_url', event.target.value)}
+                      style={cardFieldStyle}
+                      placeholder="https://quicksms.advantasms.com"
+                    />
+                  </Field>
                   <Field label="Advanta Partner ID">
                     <input
                       type="text"
