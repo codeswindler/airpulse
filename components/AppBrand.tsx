@@ -39,10 +39,19 @@ export default function AppBrand({
         style={{
           width: preset.mark,
           height: preset.mark,
-          fontSize: preset.markFont,
         }}
       >
-        AP
+        <img
+          src="/favicon.ico"
+          alt=""
+          aria-hidden="true"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'contain',
+            display: 'block',
+          }}
+        />
       </span>
       <span
         className="app-brand__text"
