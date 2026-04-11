@@ -9,6 +9,7 @@ import SmsBalanceBadge from "@/components/SmsBalanceBadge";
 import BusinessSwitcher from "@/components/BusinessSwitcher";
 import ThemeToggle from "@/components/ThemeToggle";
 import ProfileDropdown from "@/components/ProfileDropdown";
+import AppBrand from "@/components/AppBrand";
 import { BUSINESS_CONTEXT_COOKIE } from "@/lib/businessContext";
 
 type BusinessOption = {
@@ -168,10 +169,12 @@ export default function DashboardLayout({
       ) : null}
 
       <aside className={`sidebar${mobileMenuOpen ? ' sidebar--open' : ''}`}>
-        <div className="sidebar-logo">₪ AirPulse</div>
-        
+        <div className="sidebar-brand">
+          <AppBrand size="md" />
+        </div>
+
         <div className="sidebar-mobile-header">
-          <div className="sidebar-logo">AirPulse</div>
+          <AppBrand size="sm" className="mobile-header-brand" />
           <button
             type="button"
             className="sidebar-close-button"
@@ -236,7 +239,7 @@ export default function DashboardLayout({
             >
               {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
             </button>
-            <span className="mobile-header-brand">AirPulse</span>
+            <AppBrand size="sm" className="mobile-header-brand" />
           </div>
           <div className="header-right">
             <BusinessSwitcher

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { setCookie } from 'cookies-next';
 import { Eye, EyeOff, ArrowLeft, ShieldCheck, RefreshCw } from 'lucide-react';
+import AppBrand from '@/components/AppBrand';
 
 type LoginResponse = {
   success?: boolean;
@@ -147,22 +148,7 @@ export default function LoginPage() {
     <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f1117', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ flex: 1, backgroundColor: '#161922', padding: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
         <div style={{ marginBottom: '40px' }}>
-          <div style={{ fontSize: '24px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: 32,
-              height: 32,
-              borderRadius: 10,
-              background: 'linear-gradient(135deg, #3b82f6, #22c55e)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 14,
-              fontWeight: 800,
-            }}>
-              AP
-            </div>
-            AirPulse
-          </div>
+          <AppBrand size="lg" />
         </div>
         <h1 style={{ fontSize: '48px', fontWeight: 600, marginBottom: '24px' }}>Hi, welcome back</h1>
         <p style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.6, maxWidth: '420px' }}>
