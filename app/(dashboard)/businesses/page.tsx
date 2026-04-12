@@ -149,20 +149,53 @@ function metricTone(ready: boolean) {
   return ready ? 'success' : 'danger';
 }
 
-function formatSubscription(subscription: BusinessRecord['subscription']) {
+function padTimerValue(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function formatSubscription(subscription: BusinessRecord['subscription'], nowMs = Date.now()) {
   if (!subscription.endsAt) {
     return 'No subscription set';
   }
 
-  if (subscription.isExpired) {
+  const expiresAt = new Date(subscription.endsAt).getTime();
+  if (Number.isNaN(expiresAt)) {
+    return 'Invalid expiry';
+  }
+
+  const remainingMs = expiresAt - nowMs;
+
+  if (subscription.isExpired || remainingMs <= 0) {
     return 'Expired';
   }
 
-  if (subscription.daysRemaining !== null) {
-    return `${subscription.daysRemaining} day${subscription.daysRemaining === 1 ? '' : 's'} left`;
+  const totalMinutes = Math.max(0, Math.floor(remainingMs / 60_000));
+  const days = Math.floor(totalMinutes / (24 * 60));
+  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `${days}d ${padTimerValue(hours)}h ${padTimerValue(minutes)}m left`;
   }
 
-  return new Date(subscription.endsAt).toLocaleDateString();
+  if (hours > 0) {
+    return `${hours}h ${padTimerValue(minutes)}m left`;
+  }
+
+  return `${minutes}m left`;
+}
+
+function isSubscriptionExpired(subscription: BusinessRecord['subscription'], nowMs = Date.now()) {
+  if (!subscription.endsAt) {
+    return false;
+  }
+
+  const expiresAt = new Date(subscription.endsAt).getTime();
+  if (Number.isNaN(expiresAt)) {
+    return false;
+  }
+
+  return subscription.isExpired || expiresAt - nowMs <= 0;
 }
 
 function toDateTimeLocalValue(value: string | null | undefined) {
@@ -192,6 +225,7 @@ export default function BusinessesPage() {
   const [subscriptionMode, setSubscriptionMode] = useState<'ADD' | 'DEBIT'>('ADD');
   const [subscriptionDays, setSubscriptionDays] = useState('');
   const [subscriptionHours, setSubscriptionHours] = useState('');
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const editingBusiness = useMemo(
     () => businesses.find((business) => business.id === editingId) ?? null,
@@ -200,6 +234,14 @@ export default function BusinessesPage() {
 
   useEffect(() => {
     void loadBusinesses();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowTick(Date.now());
+    }, 60_000);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   const loadBusinesses = async () => {
@@ -491,8 +533,12 @@ export default function BusinessesPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span>Subscription</span>
-                <strong style={{ color: business.subscription.isExpired ? 'var(--danger-color)' : 'var(--success-color)' }}>
-                  {formatSubscription(business.subscription)}
+                <strong style={{
+                  color: isSubscriptionExpired(business.subscription, nowTick) ? 'var(--danger-color)' : 'var(--success-color)',
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {formatSubscription(business.subscription, nowTick)}
                 </strong>
               </div>
             </div>
@@ -757,7 +803,13 @@ export default function BusinessesPage() {
             <div style={{ display: 'grid', gap: 14, marginBottom: 18, fontSize: 13, color: 'var(--text-secondary)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span>Current expiry</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{formatSubscription(subscriptionTarget.subscription)}</strong>
+                <strong style={{
+                  color: isSubscriptionExpired(subscriptionTarget.subscription, nowTick) ? 'var(--danger-color)' : 'var(--text-primary)',
+                  fontVariantNumeric: 'tabular-nums',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {formatSubscription(subscriptionTarget.subscription, nowTick)}
+                </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span>Mode</span>

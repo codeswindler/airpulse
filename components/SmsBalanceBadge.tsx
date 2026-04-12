@@ -59,8 +59,9 @@ export default function SmsBalanceBadge({ businessId, compact = false }: Props) 
       color: 'var(--text-primary)',
       fontWeight: 600,
       minWidth: 0,
-      width: compact ? '100%' : 'auto',
-      justifyContent: compact ? 'space-between' : 'flex-start',
+      width: compact ? 'fit-content' : 'auto',
+      maxWidth: compact ? '100%' : 'none',
+      justifyContent: 'flex-start',
     }}>
         <MessageSquareText size={compact ? 13 : 14} color="var(--accent-color)" />
        <span style={{

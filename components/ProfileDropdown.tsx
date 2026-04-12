@@ -200,8 +200,9 @@ export default function ProfileDropdown({
             color: 'var(--text-primary)',
             cursor: 'pointer',
             transition: '0.2s ease',
-            width: compact ? '100%' : 'auto',
-            justifyContent: compact ? 'space-between' : 'flex-start',
+            width: compact ? 'fit-content' : 'auto',
+            maxWidth: compact ? '100%' : 'none',
+            justifyContent: 'flex-start',
           }}
         >
           <div
