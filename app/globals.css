@@ -218,9 +218,10 @@ body {
   }
 
   .login-page__hero {
-    flex: 0 0 auto !important;
+    flex: 1 1 0 !important;
     padding: 22px 18px 20px !important;
     justify-content: flex-start !important;
+    min-height: 0;
   }
 
   .login-page__hero-brand {
@@ -240,10 +241,11 @@ body {
   }
 
   .login-page__form {
-    flex: 0 0 auto !important;
+    flex: 1 1 0 !important;
     padding: 20px 18px 22px !important;
     align-items: stretch !important;
     justify-content: flex-start !important;
+    min-height: 0;
   }
 
   .login-page__panel {
