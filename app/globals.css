@@ -146,6 +146,84 @@ body {
   padding: 0 24px 32px;
 }
 
+.login-powered-by {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.58), rgba(15, 23, 42, 0.28));
+  text-decoration: none;
+  color: var(--text-secondary);
+  isolation: isolate;
+  overflow: hidden;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.login-powered-by::before {
+  content: '';
+  position: absolute;
+  inset: -40% -18%;
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0.08) 30%, transparent 70%);
+  filter: blur(18px);
+  opacity: 0.5;
+  transform: scale(0.96);
+  animation: login-powered-by-halo 6.4s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-powered-by__eyebrow,
+.login-powered-by__domain {
+  position: relative;
+  z-index: 1;
+}
+
+.login-powered-by__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.login-powered-by__brand {
+  z-index: 1;
+}
+
+.login-powered-by__brand .app-brand__wordmark {
+  font-size: 15px !important;
+  letter-spacing: 0.8px;
+}
+
+.login-powered-by__domain {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+@keyframes login-powered-by-halo {
+  0%,
+  100% {
+    opacity: 0.38;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-powered-by::before {
+    animation: none;
+  }
+}
+
 @keyframes brand-halo-pulse {
   0%,
   100% {
@@ -698,7 +776,16 @@ table th {
   }
 }
 
-@media (max-width: 768px) {
+  @media (max-width: 768px) {
+  .login-powered-by {
+    margin-top: 36px;
+    padding: 12px 14px;
+  }
+
+  .login-powered-by__brand .app-brand__wordmark {
+    font-size: 14px !important;
+  }
+
   .header {
     row-gap: 10px;
   }

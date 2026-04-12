@@ -155,6 +155,21 @@ export default function LoginPage() {
           Experience the next level of airtime management with integrated business intelligence.
           Monitor performance, track distribution trends, and unlock granular analytics to scale with confidence.
         </p>
+        <a
+          href="https://pulsecloud.theleasemaster.com"
+          target="_blank"
+          rel="noreferrer"
+          className="login-powered-by"
+          style={{ marginTop: '48px' }}
+        >
+          <span className="login-powered-by__eyebrow">Powered by</span>
+          <AppBrand
+            size="sm"
+            text="LeaseMaster Pulse Cloud"
+            className="login-powered-by__brand"
+          />
+          <span className="login-powered-by__domain">pulsecloud.theleasemaster.com</span>
+        </a>
       </div>
 
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
