@@ -168,7 +168,6 @@ export default function LoginPage() {
             text="LeaseMaster Pulse Cloud"
             className="login-powered-by__brand"
           />
-          <span className="login-powered-by__domain">pulsecloud.theleasemaster.com</span>
         </a>
       </div>
 
