@@ -43,17 +43,30 @@ export default function AppBrand({
           height: preset.mark,
         }}
       >
-        <img
-          src="/favicon.ico"
-          alt=""
+        <svg
+          viewBox="0 0 64 64"
+          className="app-brand__icon"
           aria-hidden="true"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain',
-            display: 'block',
-          }}
-        />
+          focusable="false"
+        >
+          <circle cx="32" cy="32" r="30" fill="#050507" />
+          <path
+            d="M42 20C31 20 24 26.5 24 32C24 37.5 31 44 42 44"
+            fill="none"
+            stroke="#f8fafc"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="6.2"
+          />
+          <path
+            d="M22 20C33 20 40 26.5 40 32C40 37.5 33 44 22 44"
+            fill="none"
+            stroke="#f8fafc"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="6.2"
+          />
+        </svg>
       </span>
       <span
         className="app-brand__text"
