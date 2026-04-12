@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { jwtVerify } from 'jose';
 import bcrypt from 'bcryptjs';
+import { getSubscriptionCountdownState } from '@/lib/subscriptionCountdown';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_32_chars_long_12345');
 
@@ -63,17 +64,22 @@ function buildSubscriptionSummary(subscriptionEndsAt: Date | string | null | und
       endsAt: null,
       isExpired: false,
       daysRemaining: null as number | null,
+      timeRemainingMs: null as number | null,
+      countdown: 'No subscription set',
     };
   }
 
   const endsAt = new Date(subscriptionEndsAt);
   const diffMs = endsAt.getTime() - Date.now();
-  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const countdown = getSubscriptionCountdownState(subscriptionEndsAt);
+  const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 
   return {
     endsAt: endsAt.toISOString(),
     isExpired: diffMs <= 0,
     daysRemaining,
+    timeRemainingMs: countdown.remainingMs,
+    countdown: countdown.label,
   };
 }
 

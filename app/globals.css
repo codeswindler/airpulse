@@ -365,6 +365,18 @@ body {
   gap: 16px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.header-actions--secondary,
+.header-actions--primary {
+  flex-wrap: wrap;
+}
+
 .badge-date {
   background: var(--bg-hover);
   padding: 6px 14px;
@@ -827,10 +839,14 @@ table th {
   }
 
   .header {
-    row-gap: 10px;
-    flex-direction: column;
-    align-items: stretch;
-    padding-bottom: 14px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    column-gap: 10px;
+    row-gap: 8px;
+    align-items: start;
+    padding: 10px 12px 12px;
+    height: auto;
   }
 
   .header-left {
@@ -838,6 +854,8 @@ table th {
     min-width: 0;
     width: 100%;
     justify-content: flex-start;
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .mobile-menu-button {
@@ -863,15 +881,33 @@ table th {
   }
 
   .header-right {
-    width: 100%;
+    width: fit-content;
     gap: 8px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-end;
     justify-content: flex-start;
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    justify-self: end;
   }
 
-  .header-right > * {
+  .header-actions {
+    width: fit-content;
+    gap: 8px;
+  }
+
+  .header-actions--primary {
+    order: 1;
+    justify-content: flex-end;
+  }
+
+  .header-actions--secondary {
+    order: 2;
+    justify-content: flex-end;
+  }
+
+  .header-actions--secondary > * {
     width: auto;
     flex: 0 0 auto;
   }

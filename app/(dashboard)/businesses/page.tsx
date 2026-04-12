@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Building2, CalendarClock, KeyRound, Loader2, Plus, Power, Trash2, Users, X } from 'lucide-react';
 import StatusPill from '@/components/StatusPill';
+import SubscriptionCountdown from '@/components/SubscriptionCountdown';
 
 type BusinessRecord = {
   id: string;
@@ -149,55 +150,6 @@ function metricTone(ready: boolean) {
   return ready ? 'success' : 'danger';
 }
 
-function padTimerValue(value: number) {
-  return String(value).padStart(2, '0');
-}
-
-function formatSubscription(subscription: BusinessRecord['subscription'], nowMs = Date.now()) {
-  if (!subscription.endsAt) {
-    return 'No subscription set';
-  }
-
-  const expiresAt = new Date(subscription.endsAt).getTime();
-  if (Number.isNaN(expiresAt)) {
-    return 'Invalid expiry';
-  }
-
-  const remainingMs = expiresAt - nowMs;
-
-  if (subscription.isExpired || remainingMs <= 0) {
-    return 'Expired';
-  }
-
-  const totalMinutes = Math.max(0, Math.floor(remainingMs / 60_000));
-  const days = Math.floor(totalMinutes / (24 * 60));
-  const hours = Math.floor((totalMinutes % (24 * 60)) / 60);
-  const minutes = totalMinutes % 60;
-
-  if (days > 0) {
-    return `${days}d ${padTimerValue(hours)}h ${padTimerValue(minutes)}m left`;
-  }
-
-  if (hours > 0) {
-    return `${hours}h ${padTimerValue(minutes)}m left`;
-  }
-
-  return `${minutes}m left`;
-}
-
-function isSubscriptionExpired(subscription: BusinessRecord['subscription'], nowMs = Date.now()) {
-  if (!subscription.endsAt) {
-    return false;
-  }
-
-  const expiresAt = new Date(subscription.endsAt).getTime();
-  if (Number.isNaN(expiresAt)) {
-    return false;
-  }
-
-  return subscription.isExpired || expiresAt - nowMs <= 0;
-}
-
 function toDateTimeLocalValue(value: string | null | undefined) {
   if (!value) {
     return '';
@@ -225,7 +177,6 @@ export default function BusinessesPage() {
   const [subscriptionMode, setSubscriptionMode] = useState<'ADD' | 'DEBIT'>('ADD');
   const [subscriptionDays, setSubscriptionDays] = useState('');
   const [subscriptionHours, setSubscriptionHours] = useState('');
-  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const editingBusiness = useMemo(
     () => businesses.find((business) => business.id === editingId) ?? null,
@@ -234,14 +185,6 @@ export default function BusinessesPage() {
 
   useEffect(() => {
     void loadBusinesses();
-  }, []);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setNowTick(Date.now());
-    }, 60_000);
-
-    return () => window.clearInterval(interval);
   }, []);
 
   const loadBusinesses = async () => {
@@ -499,95 +442,100 @@ export default function BusinessesPage() {
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginTop: 24 }}>
-        {businesses.map((business) => (
-          <div key={business.id} className="card" style={{ flex: '1 1 320px', minWidth: 280 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                  <Building2 size={18} color="var(--accent-color)" />
-                  <h3 style={{ margin: 0, fontSize: 18 }}>{business.name}</h3>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  /{business.slug}
-                </div>
-              </div>
-              <StatusPill label={business.status === 'ACTIVE' ? 'Active' : 'Suspended'} tone={getStatusTone(business.status)} />
-            </div>
+        {businesses.map((business) => {
+          const effectiveEndsAt = business.subscriptionEndsAt
+            ? new Date(business.subscriptionEndsAt)
+            : new Date(new Date(business.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000);
 
-            <div style={{ marginTop: 16, display: 'grid', gap: 10, fontSize: 13, color: 'var(--text-secondary)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>USSD Code</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{toDisplay(business.serviceCode)}</strong>
+          return (
+            <div key={business.id} className="card" style={{ flex: '1 1 320px', minWidth: 280 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                    <Building2 size={18} color="var(--accent-color)" />
+                    <h3 style={{ margin: 0, fontSize: 18 }}>{business.name}</h3>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    /{business.slug}
+                  </div>
+                </div>
+                <StatusPill label={business.status === 'ACTIVE' ? 'Active' : 'Suspended'} tone={getStatusTone(business.status)} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>Owner</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{toDisplay(business.ownerName || business.ownerEmail)}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>Admin Accounts</span>
-                <strong style={{ color: 'var(--text-primary)' }}>{business.adminCount}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>M-Pesa Ready</span>
-                <StatusPill label={business.credentialFill.mpesa ? 'Ready' : 'Not ready'} tone={metricTone(business.credentialFill.mpesa)} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                <span>Subscription</span>
-                <strong style={{
-                  color: isSubscriptionExpired(business.subscription, nowTick) ? 'var(--danger-color)' : 'var(--success-color)',
-                  fontVariantNumeric: 'tabular-nums',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {formatSubscription(business.subscription, nowTick)}
-                </strong>
-              </div>
-            </div>
 
-            <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)' }}>
-                <Users size={14} />
-                <span>{business.credentialFill.total} fields set</span>
+              <div style={{ marginTop: 16, display: 'grid', gap: 10, fontSize: 13, color: 'var(--text-secondary)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span>USSD Code</span>
+                  <strong style={{ color: 'var(--text-primary)' }}>{toDisplay(business.serviceCode)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span>Owner</span>
+                  <strong style={{ color: 'var(--text-primary)' }}>{toDisplay(business.ownerName || business.ownerEmail)}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span>Admin Accounts</span>
+                  <strong style={{ color: 'var(--text-primary)' }}>{business.adminCount}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span>M-Pesa Ready</span>
+                  <StatusPill label={business.credentialFill.mpesa ? 'Ready' : 'Not ready'} tone={metricTone(business.credentialFill.mpesa)} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                  <span>Subscription</span>
+                  <strong>
+                    <SubscriptionCountdown
+                      endsAt={effectiveEndsAt}
+                      style={{ fontWeight: 700 }}
+                    />
+                  </strong>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => openEditModal(business)}
-                  disabled={actionLoadingId === business.id}
-                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer' }}
-                >
-                  Edit
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSubscriptionAdjuster(business)}
-                  disabled={actionLoadingId === business.id}
-                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                >
-                  <CalendarClock size={14} />
-                  Adjust
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleToggleStatus(business)}
-                  disabled={actionLoadingId === business.id}
-                  style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                >
-                  <Power size={14} />
-                  {business.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteBusiness(business)}
-                  disabled={actionLoadingId === business.id}
-                  style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 10, padding: '10px 14px', color: 'var(--danger-color)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
-                >
-                  <Trash2 size={14} />
-                  Delete
-                </button>
+
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)' }}>
+                  <Users size={14} />
+                  <span>{business.credentialFill.total} fields set</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => openEditModal(business)}
+                    disabled={actionLoadingId === business.id}
+                    style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer' }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openSubscriptionAdjuster(business)}
+                    disabled={actionLoadingId === business.id}
+                    style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <CalendarClock size={14} />
+                    Adjust
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleStatus(business)}
+                    disabled={actionLoadingId === business.id}
+                    style={{ background: 'transparent', border: '1px solid var(--border-color)', borderRadius: 10, padding: '10px 14px', color: 'var(--text-primary)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <Power size={14} />
+                    {business.status === 'ACTIVE' ? 'Suspend' : 'Activate'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteBusiness(business)}
+                    disabled={actionLoadingId === business.id}
+                    style={{ background: 'transparent', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 10, padding: '10px 14px', color: 'var(--danger-color)', cursor: actionLoadingId === business.id ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8 }}
+                  >
+                    <Trash2 size={14} />
+                    Delete
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {businesses.length === 0 ? (
           <div className="card" style={{ flex: '1 1 100%', textAlign: 'center', padding: 32, color: 'var(--text-secondary)' }}>
@@ -803,12 +751,11 @@ export default function BusinessesPage() {
             <div style={{ display: 'grid', gap: 14, marginBottom: 18, fontSize: 13, color: 'var(--text-secondary)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                 <span>Current expiry</span>
-                <strong style={{
-                  color: isSubscriptionExpired(subscriptionTarget.subscription, nowTick) ? 'var(--danger-color)' : 'var(--text-primary)',
-                  fontVariantNumeric: 'tabular-nums',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {formatSubscription(subscriptionTarget.subscription, nowTick)}
+                <strong>
+                  <SubscriptionCountdown
+                    endsAt={subscriptionTarget.subscription.endsAt ?? new Date(new Date(subscriptionTarget.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000)}
+                    style={{ fontWeight: 700 }}
+                  />
                 </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>

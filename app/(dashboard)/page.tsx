@@ -3,6 +3,7 @@ import Link from 'next/link';
 import DashboardChart from '@/components/DashboardChart';
 import GrowthFilterMenu from '@/components/GrowthFilterMenu';
 import StatusPill from '@/components/StatusPill';
+import SubscriptionCountdown from '@/components/SubscriptionCountdown';
 import { resolveAdminContextFromCookies } from '@/lib/adminContext';
 import { getMpesaVerificationStatus, getTupayVerificationStatus } from '@/lib/transactionDisplay';
 import { getTupayBalance } from '@/lib/airpulseClient';
@@ -35,31 +36,6 @@ import {
 export const dynamic = 'force-dynamic';
 
 const MPESA_VERIFIED_STATUSES = ['STK_SUCCESS', 'PENDING_AIRTIME', 'AIRTIME_DELIVERED'] as const;
-
-function formatSubscriptionCountdown(subscriptionEndsAt: Date | string | null | undefined) {
-  if (!subscriptionEndsAt) {
-    return 'No subscription set';
-  }
-
-  const endsAt = new Date(subscriptionEndsAt);
-  const diffMs = endsAt.getTime() - Date.now();
-
-  if (Number.isNaN(endsAt.getTime())) {
-    return 'No subscription set';
-  }
-
-  if (diffMs <= 0) {
-    return 'Expired';
-  }
-
-  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-  if (daysRemaining <= 0) {
-    return 'Less than 1 day left';
-  }
-
-  return `${daysRemaining} day${daysRemaining === 1 ? '' : 's'} left`;
-}
 
 function TrendCopy({
   trend,
@@ -165,7 +141,6 @@ export default async function Dashboard({
                   const effectiveEndsAt = business.subscriptionEndsAt
                     ? new Date(business.subscriptionEndsAt)
                     : new Date(business.createdAt.getTime() + 30 * 24 * 60 * 60 * 1000);
-                  const isExpired = effectiveEndsAt.getTime() <= Date.now();
 
                   return (
                 <div
@@ -190,8 +165,11 @@ export default async function Dashboard({
                   <div style={{ marginTop: 14, display: 'grid', gap: 10, fontSize: 13, color: 'var(--text-secondary)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
                       <span>Subscription</span>
-                      <strong style={{ color: isExpired ? 'var(--danger-color)' : 'var(--success-color)' }}>
-                        {formatSubscriptionCountdown(effectiveEndsAt)}
+                      <strong>
+                        <SubscriptionCountdown
+                          endsAt={effectiveEndsAt}
+                          style={{ fontWeight: 700 }}
+                        />
                       </strong>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>

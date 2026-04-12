@@ -261,26 +261,30 @@ export default function DashboardLayout({
             <AppBrand size="sm" className="mobile-header-brand" />
           </div>
           <div className="header-right">
-            <BusinessSwitcher
-              role={adminRole}
-              currentBusinessId={adminBusinessId}
-              currentBusinessName={adminBusinessName}
-              businesses={businesses}
-              onBusinessChange={handleBusinessChange}
-              compact={isMobileViewport}
-            />
-            <SmsBalanceBadge businessId={adminBusinessId} compact={isMobileViewport} />
-            <div className="badge-date">Apr 05</div>
-            {isMobileViewport ? null : <ThemeToggle />}
-            <ProfileDropdown
-              adminName={adminName}
-              adminEmail={adminEmail}
-              adminPhoneNumber={adminPhoneNumber}
-              adminRole={adminRole}
-              compact={isMobileViewport}
-              showThemeToggle={isMobileViewport}
-              onProfileUpdated={handleProfileUpdated}
-            />
+            <div className="header-actions header-actions--secondary">
+              <BusinessSwitcher
+                role={adminRole}
+                currentBusinessId={adminBusinessId}
+                currentBusinessName={adminBusinessName}
+                businesses={businesses}
+                onBusinessChange={handleBusinessChange}
+                compact={isMobileViewport}
+              />
+              <SmsBalanceBadge businessId={adminBusinessId} compact={isMobileViewport} />
+              <div className="badge-date">Apr 05</div>
+            </div>
+            <div className="header-actions header-actions--primary">
+              <ThemeToggle size={isMobileViewport ? 30 : 32} tone={isMobileViewport ? 'accent' : 'default'} />
+              <ProfileDropdown
+                adminName={adminName}
+                adminEmail={adminEmail}
+                adminPhoneNumber={adminPhoneNumber}
+                adminRole={adminRole}
+                compact={isMobileViewport}
+                showThemeToggle={false}
+                onProfileUpdated={handleProfileUpdated}
+              />
+            </div>
           </div>
         </header>
         {children}
