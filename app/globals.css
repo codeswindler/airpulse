@@ -214,7 +214,7 @@ body {
 
 @media (max-width: 768px) {
   .login-page {
-    flex-direction: column-reverse !important;
+    flex-direction: column !important;
   }
 
   .login-page__hero {
