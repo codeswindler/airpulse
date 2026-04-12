@@ -5,9 +5,10 @@ import { MessageSquareText } from 'lucide-react';
 
 type Props = {
   businessId?: string | null;
+  compact?: boolean;
 };
 
-export default function SmsBalanceBadge({ businessId }: Props) {
+export default function SmsBalanceBadge({ businessId, compact = false }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
@@ -50,16 +51,21 @@ export default function SmsBalanceBadge({ businessId }: Props) {
     <div style={{ 
       display: 'flex', 
       alignItems: 'center', 
-      gap: 8, 
-      padding: '6px 12px', 
+      gap: compact ? 6 : 8, 
+      padding: compact ? '4px 10px' : '6px 12px', 
       backgroundColor: 'var(--bg-hover)', 
-      borderRadius: 8,
-      fontSize: 13,
+      borderRadius: compact ? 10 : 8,
+      fontSize: compact ? 12 : 13,
       color: 'var(--text-primary)',
-      fontWeight: 600
+      fontWeight: 600,
+      minWidth: 0
     }}>
-        <MessageSquareText size={14} color="var(--accent-color)" />
-       <span>{balance.toLocaleString()} Units</span>
+        <MessageSquareText size={compact ? 13 : 14} color="var(--accent-color)" />
+       <span style={{
+         whiteSpace: 'nowrap',
+         overflow: 'hidden',
+         textOverflow: 'ellipsis',
+       }}>{balance.toLocaleString()} Units</span>
     </div>
   );
 }

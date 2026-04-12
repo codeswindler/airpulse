@@ -19,6 +19,7 @@ type Props = {
   currentBusinessName: string | null;
   businesses: BusinessOption[];
   onBusinessChange?: (businessId: string | null, businessName?: string | null) => void;
+  compact?: boolean;
 };
 
 export default function BusinessSwitcher({
@@ -27,6 +28,7 @@ export default function BusinessSwitcher({
   currentBusinessName,
   businesses,
   onBusinessChange,
+  compact = false,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -89,18 +91,29 @@ export default function BusinessSwitcher({
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '6px 12px',
+          gap: compact ? 6 : 8,
+          padding: compact ? '4px 10px' : '6px 12px',
           backgroundColor: 'var(--bg-hover)',
-          borderRadius: 8,
-          fontSize: 13,
+          borderRadius: compact ? 10 : 8,
+          fontSize: compact ? 12 : 13,
           color: 'var(--text-primary)',
           fontWeight: 600,
           border: '1px solid var(--border-color)',
+          minWidth: 0,
         }}
       >
-        <Building2 size={14} color="var(--accent-color)" />
-        <span>{label}</span>
+        <Building2 size={compact ? 13 : 14} color="var(--accent-color)" />
+        <span
+          style={{
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: compact ? 128 : 'none',
+          }}
+        >
+          {label}
+        </span>
       </div>
     );
   }
@@ -113,20 +126,32 @@ export default function BusinessSwitcher({
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: 8,
-          padding: '6px 12px',
+          gap: compact ? 6 : 8,
+          padding: compact ? '4px 10px' : '6px 12px',
           backgroundColor: 'var(--bg-hover)',
           borderRadius: 999,
-          fontSize: 13,
+          fontSize: compact ? 12 : 13,
           color: 'var(--text-primary)',
           fontWeight: 600,
           border: '1px solid var(--border-color)',
           cursor: 'pointer',
+          minWidth: 0,
+          maxWidth: compact ? 'min(100%, 180px)' : 'none',
         }}
       >
-        <Building2 size={14} color="var(--accent-color)" />
-        <span>{label}</span>
-        <ChevronDown size={14} color="var(--text-secondary)" />
+        <Building2 size={compact ? 13 : 14} color="var(--accent-color)" />
+        <span
+          style={{
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: compact ? 104 : 'none',
+          }}
+        >
+          {label}
+        </span>
+        <ChevronDown size={compact ? 13 : 14} color="var(--text-secondary)" />
       </button>
 
       {open ? (
@@ -149,7 +174,7 @@ export default function BusinessSwitcher({
               position: 'absolute',
               right: 0,
               top: 'calc(100% + 10px)',
-              width: 280,
+              width: compact ? 246 : 280,
               backgroundColor: 'var(--bg-dark)',
               border: '1px solid var(--border-color)',
               borderRadius: 14,

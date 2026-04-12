@@ -104,10 +104,15 @@ body {
 .app-brand {
   display: inline-flex;
   align-items: center;
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
 }
 
 .app-brand__wordmark {
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-color) 100%);
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-hover) 48%, var(--accent-color) 100%);
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -115,11 +120,67 @@ body {
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
+  text-shadow:
+    0 0 8px rgba(59, 130, 246, 0.16),
+    0 0 18px rgba(59, 130, 246, 0.08);
+  filter: drop-shadow(0 0 6px rgba(59, 130, 246, 0.12));
+  animation: brand-wordmark-pulse 5.8s ease-in-out infinite;
+}
+
+.app-brand::before {
+  content: '';
+  position: absolute;
+  inset: -0.45rem -0.6rem;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.22) 0%, rgba(59, 130, 246, 0.08) 34%, transparent 72%);
+  filter: blur(14px);
+  opacity: 0.55;
+  transform: scale(0.96);
+  animation: brand-halo-pulse 5.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .sidebar-brand {
   display: block;
   padding: 0 24px 32px;
+}
+
+@keyframes brand-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.96);
+    filter: blur(14px) saturate(105%);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.03);
+    filter: blur(17px) saturate(135%);
+  }
+}
+
+@keyframes brand-wordmark-pulse {
+  0%,
+  100% {
+    text-shadow:
+      0 0 8px rgba(59, 130, 246, 0.14),
+      0 0 16px rgba(59, 130, 246, 0.08);
+    filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.1));
+  }
+  50% {
+    text-shadow:
+      0 0 11px rgba(59, 130, 246, 0.22),
+      0 0 24px rgba(59, 130, 246, 0.14);
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.16));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-brand::before,
+  .app-brand__wordmark {
+    animation: none;
+  }
 }
 
 .sidebar-menu {
@@ -638,21 +699,40 @@ table th {
 }
 
 @media (max-width: 768px) {
+  .header {
+    row-gap: 10px;
+  }
+
   .header-left {
-    gap: 10px;
+    gap: 8px;
+    min-width: 0;
   }
 
   .mobile-menu-button {
     display: inline-flex;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .mobile-menu-button svg {
+    width: 16px;
+    height: 16px;
   }
 
   .mobile-header-brand {
     display: inline-flex;
+    min-width: 0;
+  }
+
+  .mobile-header-brand .app-brand__wordmark {
+    font-size: 14px !important;
+    letter-spacing: 0.7px;
   }
 
   .header-right {
     width: 100%;
-    gap: 10px;
+    gap: 8px;
   }
 
   .badge-date {

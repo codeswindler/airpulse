@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { deleteCookie, setCookie } from 'cookies-next';
 import { ChevronDown, LogOut, PencilLine, Shield, X, Lock } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 type Props = {
   adminName: string | null;
   adminEmail: string | null;
   adminPhoneNumber?: string | null;
   adminRole: string | null;
+  showThemeToggle?: boolean;
   onProfileUpdated?: (updated: { name?: string | null; email?: string | null; phoneNumber?: string | null; role?: string | null }) => void;
 };
 
@@ -36,6 +38,7 @@ export default function ProfileDropdown({
   adminEmail,
   adminPhoneNumber,
   adminRole,
+  showThemeToggle = false,
   onProfileUpdated,
 }: Props) {
   const router = useRouter();
@@ -277,6 +280,30 @@ export default function ProfileDropdown({
                 <span>{adminRole || 'ADMIN'}</span>
               </div>
             </div>
+
+            {showThemeToggle ? (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  padding: '10px 12px',
+                  borderBottom: '1px solid var(--border-color)',
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Theme
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Quick appearance switch
+                  </div>
+                </div>
+                <ThemeToggle size={30} />
+              </div>
+            ) : null}
 
             <button
               type="button"

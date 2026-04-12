@@ -27,6 +27,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [adminRole, setAdminRole] = useState<string | null>(null);
   const [adminName, setAdminName] = useState<string | null>(null);
   const [adminEmail, setAdminEmail] = useState<string | null>(null);
@@ -38,6 +39,24 @@ export default function DashboardLayout({
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 768px)');
+
+    const updateViewportState = () => {
+      setIsMobileViewport(media.matches);
+    };
+
+    updateViewportState();
+
+    if (media.addEventListener) {
+      media.addEventListener('change', updateViewportState);
+      return () => media.removeEventListener('change', updateViewportState);
+    }
+
+    media.addListener(updateViewportState);
+    return () => media.removeListener(updateViewportState);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -237,7 +256,7 @@ export default function DashboardLayout({
               aria-expanded={mobileMenuOpen}
               onClick={() => setMobileMenuOpen((value) => !value)}
             >
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              {mobileMenuOpen ? <X size={isMobileViewport ? 16 : 18} /> : <Menu size={isMobileViewport ? 16 : 18} />}
             </button>
             <AppBrand size="sm" className="mobile-header-brand" />
           </div>
@@ -248,15 +267,17 @@ export default function DashboardLayout({
               currentBusinessName={adminBusinessName}
               businesses={businesses}
               onBusinessChange={handleBusinessChange}
+              compact={isMobileViewport}
             />
-            <SmsBalanceBadge businessId={adminBusinessId} />
+            <SmsBalanceBadge businessId={adminBusinessId} compact={isMobileViewport} />
             <div className="badge-date">Apr 05</div>
-            <ThemeToggle />
+            {isMobileViewport ? null : <ThemeToggle />}
             <ProfileDropdown
               adminName={adminName}
               adminEmail={adminEmail}
               adminPhoneNumber={adminPhoneNumber}
               adminRole={adminRole}
+              showThemeToggle={isMobileViewport}
               onProfileUpdated={handleProfileUpdated}
             />
           </div>
