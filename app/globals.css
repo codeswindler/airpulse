@@ -104,27 +104,23 @@ body {
 .app-brand {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
 }
 
 .app-brand__mark {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 0;
-  background: transparent;
+  border-radius: 9999px;
+  background: #000000;
   box-shadow: none;
   flex-shrink: 0;
   overflow: hidden;
 }
 
 .app-brand__text {
-  font-weight: 800;
+  color: #cdd9ff;
+  font-weight: 700;
   line-height: 1;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-color) 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
 }
 
 .sidebar-brand {

@@ -6,21 +6,18 @@ type AppBrandProps = {
 
 const SIZE_MAP = {
   sm: {
-    mark: 28,
-    markFont: 11,
-    text: 16,
+    mark: 24,
+    text: 14,
     gap: 8,
   },
   md: {
-    mark: 32,
-    markFont: 12,
-    text: 20,
+    mark: 28,
+    text: 16,
     gap: 10,
   },
   lg: {
-    mark: 40,
-    markFont: 14,
-    text: 24,
+    mark: 36,
+    text: 20,
     gap: 12,
   },
 } as const;
@@ -33,7 +30,12 @@ export default function AppBrand({
   const preset = SIZE_MAP[size];
 
   return (
-    <div className={`app-brand${className ? ` ${className}` : ''}`}>
+    <div
+      className={`app-brand${className ? ` ${className}` : ''}`}
+      style={{
+        gap: preset.gap,
+      }}
+    >
       <span
         className="app-brand__mark"
         style={{
