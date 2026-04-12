@@ -100,6 +100,8 @@ export default function BusinessSwitcher({
           fontWeight: 600,
           border: '1px solid var(--border-color)',
           minWidth: 0,
+          width: compact ? '100%' : 'auto',
+          justifyContent: compact ? 'space-between' : 'flex-start',
         }}
       >
         <Building2 size={compact ? 13 : 14} color="var(--accent-color)" />
@@ -136,7 +138,9 @@ export default function BusinessSwitcher({
           border: '1px solid var(--border-color)',
           cursor: 'pointer',
           minWidth: 0,
-          maxWidth: compact ? 'min(100%, 180px)' : 'none',
+          width: compact ? '100%' : 'auto',
+          justifyContent: compact ? 'space-between' : 'flex-start',
+          maxWidth: compact ? '100%' : 'none',
         }}
       >
         <Building2 size={compact ? 13 : 14} color="var(--accent-color)" />

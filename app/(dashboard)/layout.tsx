@@ -277,6 +277,7 @@ export default function DashboardLayout({
               adminEmail={adminEmail}
               adminPhoneNumber={adminPhoneNumber}
               adminRole={adminRole}
+              compact={isMobileViewport}
               showThemeToggle={isMobileViewport}
               onProfileUpdated={handleProfileUpdated}
             />

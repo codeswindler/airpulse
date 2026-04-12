@@ -12,6 +12,7 @@ type Props = {
   adminPhoneNumber?: string | null;
   adminRole: string | null;
   showThemeToggle?: boolean;
+  compact?: boolean;
   onProfileUpdated?: (updated: { name?: string | null; email?: string | null; phoneNumber?: string | null; role?: string | null }) => void;
 };
 
@@ -39,6 +40,7 @@ export default function ProfileDropdown({
   adminPhoneNumber,
   adminRole,
   showThemeToggle = false,
+  compact = false,
   onProfileUpdated,
 }: Props) {
   const router = useRouter();
@@ -190,14 +192,16 @@ export default function ProfileDropdown({
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '4px 8px 4px 4px',
+            gap: compact ? 6 : 8,
+            padding: compact ? '4px 10px 4px 4px' : '4px 8px 4px 4px',
             borderRadius: 999,
             border: '1px solid var(--border-color)',
             backgroundColor: menuOpen ? 'var(--bg-hover)' : 'transparent',
             color: 'var(--text-primary)',
             cursor: 'pointer',
             transition: '0.2s ease',
+            width: compact ? '100%' : 'auto',
+            justifyContent: compact ? 'space-between' : 'flex-start',
           }}
         >
           <div
@@ -231,7 +235,7 @@ export default function ProfileDropdown({
               position: 'absolute',
               top: 'calc(100% + 8px)',
               right: 0,
-              width: 260,
+              width: compact ? 'min(260px, calc(100vw - 32px))' : 260,
               backgroundColor: 'var(--bg-dark)',
               border: '1px solid var(--border-color)',
               borderRadius: 16,

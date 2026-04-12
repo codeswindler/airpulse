@@ -145,13 +145,13 @@ export default function LoginPage() {
   ].filter(Boolean).join(' and ');
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f1117', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ flex: 1, backgroundColor: '#161922', padding: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-        <div style={{ marginBottom: '40px' }}>
+    <div className="login-page" style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#0f1117', color: '#fff', fontFamily: 'Inter, sans-serif' }}>
+      <div className="login-page__hero" style={{ flex: 1, backgroundColor: '#161922', padding: '80px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div className="login-page__hero-brand" style={{ marginBottom: '40px' }}>
           <AppBrand size="lg" />
         </div>
-        <h1 style={{ fontSize: '48px', fontWeight: 600, marginBottom: '24px' }}>Hi, welcome back</h1>
-        <p style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.6, maxWidth: '420px' }}>
+        <h1 className="login-page__headline" style={{ fontSize: '48px', fontWeight: 600, marginBottom: '24px' }}>Hi, welcome back</h1>
+        <p className="login-page__copy" style={{ color: '#94a3b8', fontSize: '18px', lineHeight: 1.6, maxWidth: '420px' }}>
           Experience the next level of airtime management with integrated business intelligence.
           Monitor performance, track distribution trends, and unlock granular analytics to scale with confidence.
         </p>
@@ -171,8 +171,8 @@ export default function LoginPage() {
         </a>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
-        <div style={{ width: '100%', maxWidth: '420px' }}>
+      <div className="login-page__form" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+        <div className="login-page__panel" style={{ width: '100%', maxWidth: '420px' }}>
           <h2 style={{ fontSize: '32px', fontWeight: 700, marginBottom: '12px' }}>
             {step === 'credentials' ? 'Sign in' : 'Verify your code'}
           </h2>
